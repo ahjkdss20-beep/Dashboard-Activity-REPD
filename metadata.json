@@ -1,0 +1,5 @@
+{
+  "name": "JNE Job Dashboard",
+  "description": "A comprehensive job monitoring dashboard for JNE with category management, deadlines, and data visualization.",
+  "requestFramePermissions": []
+}
