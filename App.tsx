@@ -114,6 +114,21 @@ function App() {
     setCurrentUser(freshUserData);
   };
 
+  const handleResetPassword = async (email: string) => {
+    const targetUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    
+    if (targetUser) {
+        const defaultPassword = "000000";
+        const updatedUser = { ...targetUser, password: defaultPassword };
+        const updatedUserList = users.map(u => u.email === targetUser.email ? updatedUser : u);
+        
+        // Save directly to cloud
+        await saveToCloud(jobs, updatedUserList);
+        return true;
+    }
+    return false;
+  };
+
   const handleLogout = () => {
     setCurrentUser(null);
     setActiveCategory(null);
@@ -174,7 +189,13 @@ function App() {
   }, [jobs, currentUser, users]);
 
   if (!currentUser) {
-    return <Login onLogin={handleLogin} users={users} />;
+    return (
+        <Login 
+            onLogin={handleLogin} 
+            users={users} 
+            onResetPassword={handleResetPassword}
+        />
+    );
   }
 
   return (
