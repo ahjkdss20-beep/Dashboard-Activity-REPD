@@ -259,7 +259,8 @@ function App() {
           if (activeSubCategory === 'History') {
               return <ValidationHistory logs={validationLogs} />;
           }
-          return <TarifValidator onLogValidation={handleValidationLog} currentUser={currentUser} />;
+          // Updated to pass category prop
+          return <TarifValidator category="TARIF" />;
       }
       
       if (!activeCategory) {

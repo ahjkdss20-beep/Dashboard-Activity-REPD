@@ -45,6 +45,56 @@ export interface ValidationLog {
   category?: string;
 }
 
+// --- New Validation Interfaces ---
+
+export type ValidationCategory = 'TARIF' | 'BIAYA';
+
+export interface ValidationDetail {
+    column: string;
+    itValue: string | number;
+    masterValue: string | number;
+    isMatch: boolean;
+}
+
+export interface ValidationMismatch {
+    rowId: number;
+    reasons: string[];
+    details: ValidationDetail[];
+}
+
+export interface FullValidationRow {
+    origin: string;
+    dest: string;
+    sysCode: string;
+    serviceMaster: string;
+    tarifMaster: number;
+    slaFormMaster: number;
+    slaThruMaster: number;
+    serviceIT: string;
+    tarifIT: number;
+    slaFormIT: number;
+    slaThruIT: number;
+    keterangan: string;
+}
+
+export interface ValidationResult {
+    totalRows: number;
+    matches: number;
+    blanks: number;
+    mismatches: ValidationMismatch[];
+    fullReport: FullValidationRow[];
+}
+
+export interface ValidationHistoryItem {
+    id: string;
+    timestamp: string;
+    fileNameIT: string;
+    fileNameMaster: string;
+    result: ValidationResult;
+    category: ValidationCategory;
+}
+
+// Legacy support if needed, but mostly replaced by FullValidationRow
 export interface TarifRow {
   ORIGIN: string;
   DEST: string;
@@ -53,10 +103,14 @@ export interface TarifRow {
   TARIF: string;
   SLA_FORM: string;
   SLA_THRU: string;
-  [key: string]: string | string[] | undefined; // Fallback
+  [key: string]: string | string[] | undefined;
 }
 
 export interface ValidationResultRow extends TarifRow {
   validationStatus: 'MATCH' | 'MISMATCH' | 'BLANK';
   errors: string[];
+  SERVICE_REG?: string;
+  TARIF_REG?: string;
+  SLA_FORM_REG?: string;
+  SLA_THRU_REG?: string;
 }
