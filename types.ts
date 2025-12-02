@@ -1,5 +1,4 @@
 
-
 export type Status = 'Pending' | 'In Progress' | 'Completed' | 'Overdue';
 
 export interface Job {
@@ -12,6 +11,7 @@ export interface Job {
   status: Status;
   deadline: string;
   activationDate?: string;
+  keterangan?: string; // New field
   notes?: string;
   createdBy?: string;
 }
@@ -66,6 +66,8 @@ export interface FullValidationRow {
     origin: string;
     dest: string;
     sysCode: string;
+    
+    // Tarif Fields
     serviceMaster: string;
     tarifMaster: number;
     slaFormMaster: number;
@@ -74,6 +76,20 @@ export interface FullValidationRow {
     tarifIT: number;
     slaFormIT: number;
     slaThruIT: number;
+
+    // Biaya Fields
+    bpMaster?: number;
+    bpNextMaster?: number;
+    btMaster?: number;
+    bdMaster?: number;
+    bdNextMaster?: number;
+    
+    bpIT?: number;
+    bpNextIT?: number;
+    btIT?: number;
+    bdIT?: number;
+    bdNextIT?: number;
+
     keterangan: string;
 }
 

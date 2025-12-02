@@ -1,3 +1,4 @@
+
 import { MenuStructure, User } from './types';
 
 export const MENU_STRUCTURE: MenuStructure = {
@@ -19,7 +20,7 @@ export const MENU_STRUCTURE: MenuStructure = {
   },
   "Validasi": {
     name: "Validasi",
-    submenus: ["Tarif Otomatis", "History"]
+    submenus: ["Tarif Otomatis", "Biaya Validasi"]
   }
 };
 
@@ -29,7 +30,7 @@ export const JNE_BLUE = "#002F6C";
 export const LOGO_URL = "https://lh3.googleusercontent.com/d/19L5QBkcuSDrfWX_uqZGVUkpAlriZijp1";
 
 // Google Apps Script Configuration
-export const GOOGLE_SCRIPT_URL = "";
+export const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby0EwNykAaEfujJ3OK7glHks5OtNpZfEV6XcsDKtv1G5qcLdQglmUFzd4yiaZsRkBkg/exec";
 
 // JSONBin.io Configuration
 export const JSONBIN_BIN_ID = "692843aa43b1c97be9c875fd";
