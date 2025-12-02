@@ -76,8 +76,8 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
   }, [jobs]);
 
   const handleDownloadTemplate = () => {
-    const headers = "Kategori,Sub Kategori,Tanggal Input (YYYY-MM-DD),Cabang/Dept,Jenis Pekerjaan,Status,Dateline (YYYY-MM-DD)";
-    const exampleRow = "Penyesuaian,Harga Jual,2024-03-20,Jakarta,Update Tarif,Pending,2024-03-25";
+    const headers = "Kategori,Sub Kategori,Tanggal Input (YYYY-MM-DD),Cabang/Dept,Jenis Pekerjaan,Status,Dateline (YYYY-MM-DD),Keterangan";
+    const exampleRow = "Penyesuaian,Harga Jual,2024-03-20,Jakarta,Update Tarif,Pending,2024-03-25,Catatan Tambahan";
     const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + exampleRow;
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -119,6 +119,7 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
                 jobType: cols[4]?.trim() || 'Imported Job',
                 status: validStatus,
                 deadline: cols[6]?.trim() || new Date().toISOString().split('T')[0],
+                keterangan: cols[7]?.trim() || '',
                 activationDate: undefined 
             });
         }
@@ -160,7 +161,8 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
         result = result.filter(j => 
             j.branchDept.toLowerCase().includes(searchTerm.toLowerCase()) || 
             j.jobType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            j.category.toLowerCase().includes(searchTerm.toLowerCase())
+            j.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (j.keterangan && j.keterangan.toLowerCase().includes(searchTerm.toLowerCase()))
         );
     }
     return result;
@@ -219,6 +221,7 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
                                 <th className="p-4">Tanggal Input</th>
                                 <th className="p-4">Cabang</th>
                                 <th className="p-4">Pekerjaan</th>
+                                <th className="p-4">Keterangan</th>
                                 <th className="p-4">Status</th>
                                 <th className="p-4">Dateline</th>
                                 <th className="p-4">Oleh</th>
@@ -226,7 +229,7 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {filteredList.length === 0 ? (
-                                <tr><td colSpan={7} className="p-8 text-center text-gray-400">Tidak ada data ditemukan.</td></tr>
+                                <tr><td colSpan={8} className="p-8 text-center text-gray-400">Tidak ada data ditemukan.</td></tr>
                             ) : (
                                 filteredList.map(job => (
                                     <tr key={job.id} className="hover:bg-gray-50">
@@ -237,6 +240,7 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
                                         <td className="p-4">{new Date(job.dateInput).toLocaleDateString('id-ID')}</td>
                                         <td className="p-4">{job.branchDept}</td>
                                         <td className="p-4">{job.jobType}</td>
+                                        <td className="p-4 italic text-gray-500">{job.keterangan || '-'}</td>
                                         <td className="p-4">
                                             <select 
                                                 value={job.status}
