@@ -1,12 +1,10 @@
 
-
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Layout } from './components/Layout';
 import { DashboardSummary } from './components/DashboardSummary';
 import { JobManager } from './components/JobManager';
 import { Login } from './components/Login';
 import { TarifValidator } from './components/TarifValidator';
-import { ValidationHistory } from './components/ValidationHistory';
 import { Job, User, ValidationLog } from './types';
 import { AUTHORIZED_USERS } from './constants';
 import { api } from './services/api';
@@ -256,9 +254,6 @@ function App() {
 
   const renderContent = () => {
       if (activeCategory === 'Validasi') {
-          if (activeSubCategory === 'History') {
-              return <ValidationHistory logs={validationLogs} />;
-          }
           // Updated to pass category prop
           return <TarifValidator category="TARIF" />;
       }
