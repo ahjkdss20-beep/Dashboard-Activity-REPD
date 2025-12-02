@@ -557,58 +557,56 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
   };
 
   const displayedHistory = history.filter(item => {
-    if (!item.category && category === 'TARIF') return true;
+    if (!item.category && category === 'TARIF') return true; 
     return item.category === category;
   });
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-10">
+    <div className="max-w-6xl mx-auto space-y-8 pb-10">
       <div className="text-center space-y-2">
         <h2 className="text-2xl font-bold text-slate-800">Validasi {category === 'TARIF' ? 'Tarif' : 'Biaya'} Otomatis</h2>
         <p className="text-slate-500 max-w-2xl mx-auto">
             {category === 'TARIF' ? (
-                <>
-                Upload Data IT dan Master Data Tarif. Validasi: Service, Tarif, SLA Form, SLA Thru.<br/>
-                <span className="text-xs italic">Lookup: SYS_CODE (Chunked Processing Supported)</span>
-                </>
+                <>Upload <strong>Data IT</strong> dan <strong>Master Data Tarif</strong>. Sistem akan memvalidasi Service, Tarif, SLA Form, dan SLA Thru menggunakan <strong>SYS_CODE</strong>.</>
             ) : (
-                <>
-                Upload Data IT dan Master Data Costing. Validasi: BP, BP Next, BT, BD, BD Next.<br/>
-                <span className="text-xs italic">Lookup: Destinasi & Service (Map ke Master Columns)</span>
-                </>
+                <>Upload <strong>Data IT</strong> dan <strong>Master Data Biaya</strong>. Sistem akan memvalidasi komponen biaya (BP, BT, BD) berdasarkan <strong>DESTINASI</strong> dan <strong>SERVICE Mapping</strong>.</>
             )}
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center text-center hover:border-blue-400 transition group relative">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4">
+        {/* Upload Card IT */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center text-center hover:border-blue-500 transition group relative">
+            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition">
                 <FileUp size={24} />
             </div>
             <h3 className="font-semibold text-slate-700 mb-1">Template Data IT</h3>
             <p className="text-xs text-slate-400 mb-3">Upload file CSV</p>
+            
             <input type="file" onChange={(e) => handleFileChange(e, 'IT')} className="hidden" id="file-it" accept=".csv" />
-            <label htmlFor="file-it" className="cursor-pointer px-4 py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 w-full truncate mb-3">
+            <label htmlFor="file-it" className="cursor-pointer px-4 py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:border-blue-500 transition w-full truncate mb-3">
                 {fileIT ? fileIT.name : (result ? 'Tidak ada file baru' : 'Click to Upload')}
             </label>
-            <button onClick={() => downloadTemplate('IT')} className="text-xs text-blue-600 border border-blue-100 px-3 py-1 rounded hover:bg-blue-50">
-                <Download size={12}/> Download Template
+            <button onClick={() => downloadTemplate('IT')} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium border border-blue-100 px-3 py-1 rounded hover:bg-blue-50 transition">
+                <Download size={12}/> Download Template IT
             </button>
             {fileIT && <span className="absolute top-4 right-4 text-green-500"><CheckCircle2 size={20}/></span>}
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center text-center hover:border-purple-400 transition group relative">
-            <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mb-4">
+        {/* Upload Card Master */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center text-center hover:border-purple-500 transition group relative">
+            <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition">
                 <FileUp size={24} />
             </div>
             <h3 className="font-semibold text-slate-700 mb-1">Template Master Data</h3>
             <p className="text-xs text-slate-400 mb-3">Upload file CSV</p>
+            
             <input type="file" onChange={(e) => handleFileChange(e, 'MASTER')} className="hidden" id="file-master" accept=".csv" />
-            <label htmlFor="file-master" className="cursor-pointer px-4 py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 w-full truncate mb-3">
+            <label htmlFor="file-master" className="cursor-pointer px-4 py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:border-purple-500 transition w-full truncate mb-3">
                 {fileMaster ? fileMaster.name : (result ? 'Tidak ada file baru' : 'Click to Upload')}
             </label>
-            <button onClick={() => downloadTemplate('MASTER')} className="text-xs text-purple-600 border border-purple-100 px-3 py-1 rounded hover:bg-purple-50">
-                <Download size={12}/> Download Template
+            <button onClick={() => downloadTemplate('MASTER')} className="text-xs text-purple-600 hover:text-purple-800 flex items-center gap-1 font-medium border border-purple-100 px-3 py-1 rounded hover:bg-purple-50 transition">
+                <Download size={12}/> Download Template Master
             </button>
             {fileMaster && <span className="absolute top-4 right-4 text-green-500"><CheckCircle2 size={20}/></span>}
         </div>
@@ -618,20 +616,24 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
         {isValidating ? (
              <div className="w-full max-w-md bg-white p-4 rounded-xl shadow-sm border border-slate-200">
                 <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-semibold text-slate-700">{statusMessage || 'Validating...'}</span>
+                    <span className="text-sm font-semibold text-slate-700">Processing...</span>
                     <span className="text-sm font-bold text-blue-600">{progress}%</span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
                     <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-200 ease-out" style={{ width: `${progress}%` }}></div>
                 </div>
+                <p className="text-center text-xs text-slate-400 mt-2">{statusMessage}</p>
              </div>
         ) : (
             <button 
                 disabled={!fileIT || !fileMaster || isValidating}
                 onClick={processValidation}
-                className={`px-8 py-3 rounded-full font-semibold shadow-lg transition flex items-center gap-2 ${(!fileIT || !fileMaster) ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'}`}
+                className={`px-8 py-3 rounded-full font-semibold shadow-lg transition flex items-center gap-2
+                    ${(!fileIT || !fileMaster) ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-105'}
+                `}
             >
-                <Upload size={20} /> Mulai Validasi {category === 'TARIF' ? 'Tarif' : 'Biaya'}
+                <Upload size={20} />
+                Mulai Validasi {category === 'TARIF' ? 'Tarif' : 'Biaya'}
             </button>
         )}
       </div>
@@ -641,8 +643,8 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                   <h3 className="font-bold text-lg text-slate-800">Hasil Validasi {category}</h3>
                   <div className="flex gap-2">
-                    <button onClick={() => handleOpenReport('ALL')} className="text-slate-500 text-sm flex items-center gap-1 hover:text-blue-600 border border-slate-200 px-3 py-1 rounded">
-                        <TableIcon size={16} /> Lihat Detail
+                    <button onClick={() => handleOpenReport('ALL')} className="text-slate-500 text-sm flex items-center gap-1 hover:text-blue-600 border border-slate-200 px-3 py-1 rounded hover:bg-slate-50 transition">
+                        <TableIcon size={16} /> Lihat Detail Table
                     </button>
                     <button onClick={() => downloadFullReport()} className="text-blue-600 text-sm flex items-center gap-1 hover:underline font-medium">
                         <Download size={16} /> Download Report
@@ -653,70 +655,69 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
               <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div onClick={() => handleOpenReport('ALL')} className="bg-blue-50 p-4 rounded-lg border border-blue-100 hover:bg-blue-100 transition cursor-pointer">
                     <p className="text-sm text-blue-600 mb-1">Total Data</p>
-                    <p className="text-3xl font-bold text-blue-800">{result.totalRows}</p>
+                    <p className="text-3xl font-bold text-blue-800">{result.totalRows.toLocaleString()}</p>
                 </div>
                 <div onClick={() => handleOpenReport('MATCH')} className="bg-green-50 p-4 rounded-lg border border-green-100 hover:bg-green-100 transition cursor-pointer">
                     <p className="text-sm text-green-600 mb-1">Data Sesuai</p>
-                    <p className="text-3xl font-bold text-green-800">{result.matches}</p>
+                    <p className="text-3xl font-bold text-green-800">{result.matches.toLocaleString()}</p>
                 </div>
                 <div onClick={() => handleOpenReport('MISMATCH')} className="bg-red-50 p-4 rounded-lg border border-red-100 hover:bg-red-100 transition cursor-pointer">
                     <p className="text-sm text-red-600 mb-1">Tidak Sesuai</p>
-                    <p className="text-3xl font-bold text-red-800">{result.mismatches.length - result.blanks}</p>
+                    <p className="text-3xl font-bold text-red-800">{(result.mismatches.length - result.blanks).toLocaleString()}</p>
                 </div>
                 <div onClick={() => handleOpenReport('BLANK')} className="bg-slate-100 p-4 rounded-lg border border-slate-200 hover:bg-slate-200 transition cursor-pointer">
                     <p className="text-sm text-slate-600 mb-1">Data Blank</p>
-                    <p className="text-3xl font-bold text-slate-800">{result.blanks}</p>
+                    <p className="text-3xl font-bold text-slate-800">{result.blanks.toLocaleString()}</p>
                 </div>
               </div>
-
-              {result.mismatches.length > 0 && (
-                <div className="border-t border-slate-200">
-                    <div className="bg-slate-50 px-6 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Quick List Ketidaksesuaian (Sampel 100 Data Teratas)</div>
-                    <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
-                        {result.mismatches.slice(0, 100).map((item, idx) => (
-                            <div key={idx} onClick={(e) => { e.stopPropagation(); setSelectedMismatch(item); }} className="px-6 py-3 flex items-center justify-between hover:bg-blue-50 cursor-pointer group transition">
-                                <div className="flex items-start gap-3">
-                                    <AlertTriangle size={18} className="text-red-500 mt-0.5 flex-shrink-0" />
-                                    <div>
-                                        <p className="text-sm font-medium text-slate-800">Row ID: {item.rowId}</p>
-                                        <div className="flex flex-wrap gap-2 mt-1">
-                                            {item.reasons.map((reason, rIdx) => (
-                                                <span key={rIdx} className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">{reason}</span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                                <Eye size={16} className="text-slate-300 group-hover:text-blue-500" />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-              )}
           </div>
       )}
 
-      {/* History Table */}
+      {/* History Section */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><History size={20} className="text-slate-500" /> Riwayat Validasi {category}</h3>
-            {displayedHistory.length > 0 && <button onClick={clearHistory} className="text-red-500 text-sm flex items-center gap-1"><Trash2 size={16} /> Hapus</button>}
+            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                <History size={20} className="text-slate-500" />
+                Riwayat Validasi {category}
+            </h3>
+            {displayedHistory.length > 0 && (
+                <button onClick={clearHistory} className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1">
+                    <Trash2 size={16} /> Hapus Riwayat
+                </button>
+            )}
         </div>
         <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
-                    <tr><th className="px-6 py-3">Waktu</th><th className="px-6 py-3">File IT</th><th className="px-6 py-3">File Master</th><th className="px-6 py-3">Hasil</th><th className="px-6 py-3">Aksi</th></tr>
+                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                    <tr>
+                        <th className="px-6 py-3">Waktu</th>
+                        <th className="px-6 py-3">File IT</th>
+                        <th className="px-6 py-3">File Master</th>
+                        <th className="px-6 py-3">Hasil</th>
+                        <th className="px-6 py-3">Aksi</th>
+                    </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                     {displayedHistory.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-50">
-                            <td className="px-6 py-3">{item.timestamp}</td>
-                            <td className="px-6 py-3 font-medium">{item.fileNameIT}</td>
-                            <td className="px-6 py-3 font-medium">{item.fileNameMaster}</td>
-                            <td className="px-6 py-3">{item.result.matches} Sesuai / {item.result.mismatches.length} Mismatch</td>
-                            <td className="px-6 py-3"><button onClick={() => restoreFromHistory(item)} className="text-blue-600 flex items-center gap-1 text-xs border border-blue-100 px-2 py-1 rounded"><RotateCcw size={12} /> Lihat</button></td>
+                        <tr key={item.id} className="hover:bg-slate-50 transition">
+                            <td className="px-6 py-3 text-slate-500">{item.timestamp}</td>
+                            <td className="px-6 py-3 text-slate-800 font-medium">{item.fileNameIT}</td>
+                            <td className="px-6 py-3 text-slate-800 font-medium">{item.fileNameMaster}</td>
+                            <td className="px-6 py-3">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">
+                                    {item.result.matches} Sesuai / {item.result.blanks} Blank
+                                </span>
+                            </td>
+                            <td className="px-6 py-3">
+                                <button onClick={() => restoreFromHistory(item)} className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs font-medium border border-blue-100 px-2 py-1 rounded hover:bg-blue-50">
+                                    <RotateCcw size={12} /> Lihat Kembali
+                                </button>
+                            </td>
                         </tr>
                     ))}
-                    {displayedHistory.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-400">Belum ada riwayat.</td></tr>}
+                    {displayedHistory.length === 0 && (
+                        <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-400">Belum ada riwayat.</td></tr>
+                    )}
                 </tbody>
             </table>
         </div>
@@ -728,51 +729,62 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
             <div className="bg-white rounded-lg shadow-xl w-full h-full max-w-[95vw] max-h-[90vh] flex flex-col animate-in zoom-in-95">
                 <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 flex-shrink-0">
                     <div>
-                        <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><TableIcon size={20} className="text-blue-600" /> Laporan Validasi {category}</h3>
-                        <p className="text-xs text-slate-500">
-                            Menampilkan {((currentPage - 1) * ROWS_PER_PAGE) + 1} - {Math.min(currentPage * ROWS_PER_PAGE, getDisplayedRows.length)} dari {getDisplayedRows.length} data
-                        </p>
+                        <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                           <TableIcon size={20} className="text-blue-600" />
+                           Laporan Validasi {category}: {reportFilter}
+                        </h3>
+                        <p className="text-xs text-slate-500">Menampilkan {getDisplayedRows.length.toLocaleString()} data</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <button onClick={() => downloadFullReport(getDisplayedRows)} className="flex items-center gap-2 bg-green-600 text-white px-3 py-1.5 rounded text-sm"><Download size={16} /> Download CSV</button>
-                        <button onClick={() => setShowFullReport(false)} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
+                        <button onClick={() => downloadFullReport(getDisplayedRows)} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm transition">
+                            <Download size={16} /> Download CSV
+                        </button>
+                        <button onClick={() => setShowFullReport(false)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1 rounded transition">
+                            <X size={24} />
+                        </button>
                     </div>
                 </div>
                 
-                <div className="flex-1 overflow-auto">
-                    <table className="w-full text-xs text-left border-collapse">
+                <div className="flex-1 overflow-auto bg-slate-50">
+                    <table className="w-full text-xs text-left border-collapse bg-white">
                         <thead className="sticky top-0 z-10 shadow-sm">
                             <tr className="uppercase text-slate-800 font-bold border-b border-slate-300">
+                                <th className="bg-yellow-300 px-2 py-3 border-r border-slate-300 min-w-[80px]">ORIGIN</th>
+                                <th className="bg-yellow-300 px-2 py-3 border-r border-slate-300 min-w-[80px]">DEST</th>
+                                <th className="bg-yellow-300 px-2 py-3 border-r border-slate-300 min-w-[150px]">
+                                    {category === 'TARIF' ? 'SYS_CODE' : 'SERVICE IT'}
+                                </th>
+                                {category === 'BIAYA' && (
+                                    <th className="bg-yellow-300 px-2 py-3 border-r border-slate-300 min-w-[100px]">ACUAN SERVICE</th>
+                                )}
+                                
                                 {category === 'TARIF' ? (
                                     <>
-                                    <th className="bg-yellow-300 px-2 py-3 border-r min-w-[100px]">ORIGIN</th>
-                                    <th className="bg-yellow-300 px-2 py-3 border-r min-w-[100px]">DEST</th>
-                                    <th className="bg-yellow-300 px-2 py-3 border-r min-w-[150px]">SYS_CODE</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[80px]">Service REG</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[80px]">Tarif REG</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[80px]">sla form</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[80px]">sla thru</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[80px]">SERVICE</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[80px]">TARIF</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[80px]">SLA_FORM</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[80px]">SLA_THRU</th>
+                                        {/* Master Data */}
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">Service REG</th>
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">Tarif REG</th>
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">sla form</th>
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">sla thru</th>
+                                        {/* IT Data */}
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">SERVICE</th>
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">TARIF</th>
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">SLA_FORM</th>
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">SLA_THRU</th>
                                     </>
                                 ) : (
                                     <>
-                                    <th className="bg-yellow-300 px-2 py-3 border-r min-w-[100px]">ORIGIN</th>
-                                    <th className="bg-yellow-300 px-2 py-3 border-r min-w-[100px]">DEST</th>
-                                    <th className="bg-yellow-300 px-2 py-3 border-r min-w-[80px]">SERVICE</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[80px]">ACUAN SERVICE</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[60px]">BP Master</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[60px]">BP Next M</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[60px]">BT Master</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[60px]">BD Master</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[60px]">BD Next M</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[60px]">BP IT</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[60px]">BP Next IT</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[60px]">BT IT</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[60px]">BD IT</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[60px]">BD Next IT</th>
+                                        {/* BIAYA COLS */}
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">BP M</th>
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">BP N M</th>
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">BT M</th>
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">BD M</th>
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">BD N M</th>
+
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">BP IT</th>
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">BP N IT</th>
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">BT IT</th>
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">BD IT</th>
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">BD N IT</th>
                                     </>
                                 )}
                                 <th className="bg-white px-2 py-3 min-w-[200px]">Keterangan</th>
@@ -782,104 +794,69 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                             {paginatedRows.length > 0 ? (
                                 paginatedRows.map((row, idx) => (
                                     <tr key={idx} className="hover:bg-blue-50 transition">
-                                        <td className="px-2 py-2 border-r">{row.origin}</td>
-                                        <td className="px-2 py-2 border-r">{row.dest}</td>
-                                        <td className="px-2 py-2 border-r">{row.sysCode}</td>
-                                        
+                                        <td className="px-2 py-2 border-r border-slate-100">{row.origin}</td>
+                                        <td className="px-2 py-2 border-r border-slate-100">{row.dest}</td>
+                                        <td className="px-2 py-2 border-r border-slate-100">{category === 'TARIF' ? row.sysCode : row.serviceIT}</td>
+                                        {category === 'BIAYA' && (
+                                            <td className="px-2 py-2 border-r border-slate-100 text-blue-600 font-semibold">{row.serviceMaster}</td>
+                                        )}
+
                                         {category === 'TARIF' ? (
                                             <>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.serviceMaster}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.tarifMaster)}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.slaFormMaster)}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.slaThruMaster)}</td>
-                                            <td className="px-2 py-2 border-r">{row.serviceIT}</td>
-                                            <td className="px-2 py-2 border-r">{safeRender(row.tarifIT)}</td>
-                                            <td className="px-2 py-2 border-r">{safeRender(row.slaFormIT)}</td>
-                                            <td className="px-2 py-2 border-r">{safeRender(row.slaThruIT)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50">{row.serviceMaster}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-right">{safeRender(row.tarifMaster)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-center">{row.slaFormMaster}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-center">{row.slaThruMaster}</td>
+
+                                                <td className="px-2 py-2 border-r border-slate-100">{row.serviceIT}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 text-right">{safeRender(row.tarifIT)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 text-center">{row.slaFormIT}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 text-center">{row.slaThruIT}</td>
                                             </>
                                         ) : (
                                             <>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.serviceMaster}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.bpMaster)}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.bpNextMaster)}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.btMaster)}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.bdMaster)}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.bdNextMaster)}</td>
-                                            <td className="px-2 py-2 border-r">{safeRender(row.bpIT)}</td>
-                                            <td className="px-2 py-2 border-r">{safeRender(row.bpNextIT)}</td>
-                                            <td className="px-2 py-2 border-r">{safeRender(row.btIT)}</td>
-                                            <td className="px-2 py-2 border-r">{safeRender(row.bdIT)}</td>
-                                            <td className="px-2 py-2 border-r">{safeRender(row.bdNextIT)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-right">{safeRender(row.bpMaster)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-right">{safeRender(row.bpNextMaster)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-right">{safeRender(row.btMaster)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-right">{safeRender(row.bdMaster)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-right">{safeRender(row.bdNextMaster)}</td>
+
+                                                <td className="px-2 py-2 border-r border-slate-100 text-right">{safeRender(row.bpIT)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 text-right">{safeRender(row.bpNextIT)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 text-right">{safeRender(row.btIT)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 text-right">{safeRender(row.bdIT)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 text-right">{safeRender(row.bdNextIT)}</td>
                                             </>
                                         )}
-                                        
-                                        <td className={`px-2 py-2 font-medium ${row.keterangan === 'Sesuai' ? 'text-slate-800' : 'text-red-600'}`}>
+
+                                        <td className={`px-2 py-2 font-medium ${row.keterangan === 'Sesuai' ? 'text-green-600' : 'text-red-600'}`}>
                                             {row.keterangan}
                                         </td>
                                     </tr>
                                 ))
                             ) : (
-                                <tr><td colSpan={13} className="px-6 py-12 text-center text-slate-400">Tidak ada data untuk filter ini.</td></tr>
+                                <tr><td colSpan={15} className="px-6 py-12 text-center text-slate-400">Tidak ada data.</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
 
-                {/* Pagination Controls */}
-                <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-between items-center">
-                    <button 
-                        onClick={() => handlePageChange(currentPage - 1)} 
-                        disabled={currentPage === 1}
-                        className="px-3 py-1 bg-white border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-50 text-sm flex items-center"
-                    >
-                        <ChevronLeft size={16} /> Prev
-                    </button>
-                    <span className="text-sm text-gray-600">
-                        Halaman <span className="font-semibold">{currentPage}</span> dari <span className="font-semibold">{totalPages || 1}</span>
-                    </span>
-                    <button 
-                        onClick={() => handlePageChange(currentPage + 1)} 
-                        disabled={currentPage === totalPages || totalPages === 0}
-                        className="px-3 py-1 bg-white border border-gray-300 rounded disabled:opacity-50 hover:bg-gray-50 text-sm flex items-center"
-                    >
-                        Next <ChevronRight size={16} />
-                    </button>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {selectedMismatch && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95">
-                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <div>
-                        <h3 className="font-bold text-lg text-slate-800">Detail Ketidaksesuaian</h3>
-                        <p className="text-sm text-slate-500">Row ID: {selectedMismatch.rowId}</p>
+                {/* PAGINATION */}
+                <div className="p-4 border-t border-slate-200 bg-white flex justify-between items-center flex-shrink-0">
+                    <p className="text-sm text-slate-500">Page {currentPage} of {totalPages}</p>
+                    <div className="flex gap-2">
+                        <button disabled={currentPage === 1} onClick={() => handlePageChange(currentPage - 1)} className="p-2 border rounded hover:bg-slate-50 disabled:opacity-50">
+                            <ChevronLeft size={16} />
+                        </button>
+                        <button disabled={currentPage === totalPages} onClick={() => handlePageChange(currentPage + 1)} className="p-2 border rounded hover:bg-slate-50 disabled:opacity-50">
+                            <ChevronRight size={16} />
+                        </button>
                     </div>
-                    <button onClick={() => setSelectedMismatch(null)} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
                 </div>
-                <div className="p-6">
-                     <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
-                            <tr><th className="px-4 py-3">Column</th><th className="px-4 py-3">Data IT (Uploaded)</th><th className="px-4 py-3">Master Data</th><th className="px-4 py-3 text-center">Status</th></tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {selectedMismatch.details.map((detail, idx) => (
-                                <tr key={idx} className={!detail.isMatch ? "bg-red-50/50" : ""}>
-                                    <td className="px-4 py-3 font-medium text-slate-700">{detail.column}</td>
-                                    <td className={`px-4 py-3 ${!detail.isMatch ? 'text-black font-semibold' : 'text-slate-600'}`}>{safeRender(Number(detail.itValue))}</td>
-                                    <td className={`px-4 py-3 ${!detail.isMatch ? 'text-green-700 font-semibold' : 'text-slate-600'}`}>{safeRender(Number(detail.masterValue))}</td>
-                                    <td className="px-4 py-3 text-center">{detail.isMatch ? <CheckCircle2 size={12} className="text-green-600"/> : <X size={12} className="text-red-600"/>}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-                <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end"><button onClick={() => setSelectedMismatch(null)} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition text-sm font-medium">Tutup</button></div>
             </div>
         </div>
       )}
     </div>
   );
 };
+    
