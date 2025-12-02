@@ -150,7 +150,6 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
   // --- CHUNKED CSV PROCESSOR ---
   const CHUNK_SIZE = 1024 * 1024 * 5; // 5MB Chunks
 
-  // Parse a single line CSV considering quotes
   const parseLine = (line: string, delimiter: string) => {
     const result: string[] = [];
     let start = 0;
@@ -191,10 +190,8 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
           // Remove BOM if start of file
           const cleanText = (offset === 0) ? text.replace(/^\uFEFF/, '') : text;
           
-          // Split by newline
           const rawLines = (leftover + cleanText).split(/\r\n|\n/);
           
-          // Save last line for next chunk (unless end of file)
           if (offset + CHUNK_SIZE < fileSize) {
               leftover = rawLines.pop() || '';
           } else {
@@ -206,7 +203,6 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
           if (validLines.length > 0) {
               let startIndex = 0;
 
-              // Parse Headers if not done
               if (!headers) {
                   const firstLine = validLines[0];
                   const commaCount = (firstLine.match(/,/g) || []).length;
@@ -218,12 +214,10 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                   startIndex = 1;
               }
 
-              // Process Rows
               const rows: any[] = [];
               for (let i = startIndex; i < validLines.length; i++) {
                   const values = parseLine(validLines[i], delimiter);
                   const row: any = {};
-                  // Basic optimization: don't create object if row is empty
                   if (values.length === 1 && values[0] === '') continue;
 
                   headers.forEach((h, idx) => {
@@ -237,9 +231,14 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
           offset += CHUNK_SIZE;
           onProgress(Math.min(Math.round((offset / fileSize) * 100), 100));
           
-          // Allow UI to breathe
           await new Promise(resolve => setTimeout(resolve, 0));
       }
+  };
+
+  // Helper untuk rendering angka yang aman (mencegah crash toLocaleString pada null/undefined)
+  const safeRender = (val: number | undefined | null) => {
+      if (val === undefined || val === null || isNaN(val)) return '0';
+      return val.toLocaleString('id-ID');
   };
 
   const processValidation = async () => {
@@ -251,16 +250,14 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
     setResult(null);
 
     try {
-        // 1. Process Master Data First (Build Map)
         setStatusMessage('Membaca Master Data...');
         const masterMap = new Map<string, any>();
         
         await processFileChunked(
             fileMaster,
-            () => {}, // headers ignored here, derived in loop
+            () => {},
             (rows) => {
                 if (category === 'BIAYA') {
-                    // Biaya Key: DESTINASI
                     const keys = Object.keys(rows[0] || {});
                     const destKey = keys.find(k => k.toUpperCase().includes('DEST')) || 'DESTINASI';
                     rows.forEach(row => {
@@ -268,24 +265,22 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                         if (k) masterMap.set(k, row);
                     });
                 } else {
-                    // Tarif Key: SYS_CODE
                     const keys = Object.keys(rows[0] || {});
                     const sysKey = keys.find(k => k.trim().replace(/_/g, '').toUpperCase() === 'SYSCODE');
-                    if (!sysKey) return; // Skip if no key found
+                    if (!sysKey) return; 
                     rows.forEach(row => {
                         const k = String(row[sysKey] || '').trim().toUpperCase();
                         if (k) masterMap.set(k, row);
                     });
                 }
             },
-            (pct) => setProgress(Math.round(pct * 0.3)) // Master read counts for 30% progress
+            (pct) => setProgress(Math.round(pct * 0.3)) 
         );
 
         if (masterMap.size === 0) {
             throw new Error("Gagal membaca Master Data atau kolom Key tidak ditemukan.");
         }
 
-        // 2. Process IT Data Stream
         setStatusMessage('Memvalidasi Data IT...');
         
         const fullReport: FullValidationRow[] = [];
@@ -294,7 +289,6 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
         let blanksCount = 0;
         let rowIndexGlobal = 0;
 
-        // Biaya Helper
         const getAcuanService = (val: string) => {
             const v = val.toUpperCase().trim();
             if (['CRGTK', 'JTR23', 'JTR5_23'].includes(v)) return 'JTR23';
@@ -303,18 +297,20 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
             return v;
         };
 
+        // --- ROBUST NUMBER PARSER ---
         const parseNum = (val: any) => {
-            // Remove thousand separators (dots or commas) depending on locale guess or just remove non-digits
-            // Assuming standard format "1.000" or "1000". If "1,000" is used as decimal, this needs adjustment.
-            // For this app context (ID), dot is thousand separator usually.
-            const clean = String(val || '0').replace(/[^0-9]/g, ''); 
-            return parseInt(clean) || 0;
+            if (!val) return 0;
+            let str = String(val).trim();
+            // 1. Remove .00 or ,00 at the end (decimals)
+            str = str.replace(/[.,]00$/, ''); 
+            // 2. Remove all non-digits (remove thousand separators like . or ,)
+            const clean = str.replace(/[^0-9-]/g, ''); 
+            return parseInt(clean, 10) || 0;
         };
 
         await processFileChunked(
             fileIT,
             (headers) => {
-                 // Header Validation Check
                  if (category === 'BIAYA') {
                      const hasDest = headers.some(h => h.toUpperCase().includes('DEST'));
                      const hasServ = headers.some(h => h.toUpperCase().includes('SERVICE'));
@@ -362,11 +358,11 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                              reportRow.keterangan = 'Master Data Tidak Ada (Destinasi)';
                              blanksCount++;
                              mismatches.push({ rowId: rowIndex, reasons: ['Master Data Tidak Ada'], details: [] });
+                             // Ensure numbers are 0, not undefined
                              reportRow.bpMaster = 0; reportRow.bpNextMaster = 0; reportRow.btMaster = 0; reportRow.bdMaster = 0; reportRow.bdNextMaster = 0;
                          } else {
                              const getMasterVal = (prefix: string) => {
                                  // Look for exact key match "PREFIX ACUAN"
-                                 // Handle potential spacing issues in Master Data Headers
                                  const target = `${prefix} ${acuanService}`.toUpperCase().replace(/\s+/g, ' ');
                                  const key = Object.keys(masterRow).find(k => 
                                      k.toUpperCase().replace(/\s+/g, ' ') === target
@@ -382,17 +378,19 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
 
                              const issues: string[] = [];
                              const details: ValidationDetail[] = [];
-                             const check = (col: string, valIT: number, valMaster: number) => {
-                                 const match = valIT === valMaster;
+                             const check = (col: string, valIT: number | undefined, valMaster: number | undefined) => {
+                                 const v1 = valIT || 0;
+                                 const v2 = valMaster || 0;
+                                 const match = v1 === v2;
                                  if (!match) issues.push(col);
-                                 details.push({ column: col, itValue: valIT, masterValue: valMaster, isMatch: match });
+                                 details.push({ column: col, itValue: v1, masterValue: v2, isMatch: match });
                              };
 
-                             check('BP', reportRow.bpIT!, reportRow.bpMaster!);
-                             check('BP NEXT', reportRow.bpNextIT!, reportRow.bpNextMaster!);
-                             check('BT', reportRow.btIT!, reportRow.btMaster!);
-                             check('BD', reportRow.bdIT!, reportRow.bdMaster!);
-                             check('BD NEXT', reportRow.bdNextIT!, reportRow.bdNextMaster!);
+                             check('BP', reportRow.bpIT, reportRow.bpMaster);
+                             check('BP NEXT', reportRow.bpNextIT, reportRow.bpNextMaster);
+                             check('BT', reportRow.btIT, reportRow.btMaster);
+                             check('BD', reportRow.bdIT, reportRow.bdMaster);
+                             check('BD NEXT', reportRow.bdNextIT, reportRow.bdNextMaster);
 
                              if (issues.length === 0) {
                                  reportRow.keterangan = 'Sesuai';
@@ -487,10 +485,9 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                     }
                 });
             },
-            (pct) => setProgress(30 + Math.round(pct * 0.7)) // IT Read counts for remaining 70%
+            (pct) => setProgress(30 + Math.round(pct * 0.7)) 
         );
 
-        // Finalize
         setStatusMessage('Menyimpan hasil...');
         const validationResult: ValidationResult = {
             totalRows: fullReport.length,
@@ -533,7 +530,6 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
       return rows;
   }, [result, reportFilter]);
 
-  // Pagination Logic
   const totalPages = Math.ceil(getDisplayedRows.length / ROWS_PER_PAGE);
   const paginatedRows = useMemo(() => {
       const start = (currentPage - 1) * ROWS_PER_PAGE;
@@ -556,7 +552,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
 
   const handleOpenReport = (filter: 'ALL' | 'MATCH' | 'MISMATCH' | 'BLANK') => {
     setReportFilter(filter);
-    setCurrentPage(1); // Reset to page 1
+    setCurrentPage(1); 
     setShowFullReport(true);
   };
 
@@ -693,11 +689,6 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                                 <Eye size={16} className="text-slate-300 group-hover:text-blue-500" />
                             </div>
                         ))}
-                        {result.mismatches.length > 100 && (
-                             <div className="px-6 py-3 text-center text-xs text-slate-500 italic">
-                                ...dan {result.mismatches.length - 100} lainnya. Lihat Detail Table untuk semua data.
-                             </div>
-                        )}
                     </div>
                 </div>
               )}
@@ -798,27 +789,27 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                                         {category === 'TARIF' ? (
                                             <>
                                             <td className="px-2 py-2 border-r bg-slate-50">{row.serviceMaster}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.tarifMaster.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.slaFormMaster}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.slaThruMaster}</td>
+                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.tarifMaster)}</td>
+                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.slaFormMaster)}</td>
+                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.slaThruMaster)}</td>
                                             <td className="px-2 py-2 border-r">{row.serviceIT}</td>
-                                            <td className="px-2 py-2 border-r">{row.tarifIT.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r">{row.slaFormIT}</td>
-                                            <td className="px-2 py-2 border-r">{row.slaThruIT}</td>
+                                            <td className="px-2 py-2 border-r">{safeRender(row.tarifIT)}</td>
+                                            <td className="px-2 py-2 border-r">{safeRender(row.slaFormIT)}</td>
+                                            <td className="px-2 py-2 border-r">{safeRender(row.slaThruIT)}</td>
                                             </>
                                         ) : (
                                             <>
                                             <td className="px-2 py-2 border-r bg-slate-50">{row.serviceMaster}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.bpMaster?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.bpNextMaster?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.btMaster?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.bdMaster?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.bdNextMaster?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r">{row.bpIT?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r">{row.bpNextIT?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r">{row.btIT?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r">{row.bdIT?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r">{row.bdNextIT?.toLocaleString()}</td>
+                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.bpMaster)}</td>
+                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.bpNextMaster)}</td>
+                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.btMaster)}</td>
+                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.bdMaster)}</td>
+                                            <td className="px-2 py-2 border-r bg-slate-50">{safeRender(row.bdNextMaster)}</td>
+                                            <td className="px-2 py-2 border-r">{safeRender(row.bpIT)}</td>
+                                            <td className="px-2 py-2 border-r">{safeRender(row.bpNextIT)}</td>
+                                            <td className="px-2 py-2 border-r">{safeRender(row.btIT)}</td>
+                                            <td className="px-2 py-2 border-r">{safeRender(row.bdIT)}</td>
+                                            <td className="px-2 py-2 border-r">{safeRender(row.bdNextIT)}</td>
                                             </>
                                         )}
                                         
@@ -877,8 +868,8 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                             {selectedMismatch.details.map((detail, idx) => (
                                 <tr key={idx} className={!detail.isMatch ? "bg-red-50/50" : ""}>
                                     <td className="px-4 py-3 font-medium text-slate-700">{detail.column}</td>
-                                    <td className={`px-4 py-3 ${!detail.isMatch ? 'text-black font-semibold' : 'text-slate-600'}`}>{detail.itValue}</td>
-                                    <td className={`px-4 py-3 ${!detail.isMatch ? 'text-green-700 font-semibold' : 'text-slate-600'}`}>{detail.masterValue}</td>
+                                    <td className={`px-4 py-3 ${!detail.isMatch ? 'text-black font-semibold' : 'text-slate-600'}`}>{safeRender(Number(detail.itValue))}</td>
+                                    <td className={`px-4 py-3 ${!detail.isMatch ? 'text-green-700 font-semibold' : 'text-slate-600'}`}>{safeRender(Number(detail.masterValue))}</td>
                                     <td className="px-4 py-3 text-center">{detail.isMatch ? <CheckCircle2 size={12} className="text-green-600"/> : <X size={12} className="text-red-600"/>}</td>
                                 </tr>
                             ))}
