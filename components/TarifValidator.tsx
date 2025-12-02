@@ -65,7 +65,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
     } else {
         // BIAYA TEMPLATES
         if (type === 'IT') {
-            content = 'ORIGIN,DESTINASI,SERVICE,BT,BD,BD NEXT,BP,BP NEXT\nAMI20100,BDJ10502,REG23,1500,3200,0,0,0';
+            content = 'ORIGIN,DESTINASI,SERVICE,BT,BD,BD NEXT,BP,BP NEXT\nAMI20100,BDJ10502,REG19,1500,3200,0,0,0';
             filename = `Template_Data_IT_BIAYA.csv`;
         } else {
             content = 'DESTINASI,ZONA,BP OKE23,BP NEXT OKE23,BT OKE23,BD OKE23,BP REG23,BP NEXT REG23,BT REG23,BD REG23,BD NEXT REG23\nAMI10000,A,1500,0,1200,3200,2000,0,1500,3500,0';
@@ -107,13 +107,13 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
     } else {
         // BIAYA HEADER
         header = [
-            'ORIGIN', 'DESTINASI', 'SERVICE', 
+            'ORIGIN', 'DESTINASI', 'SERVICE', 'ACUAN SERVICE',
             'BP Master', 'BP Next Master', 'BT Master', 'BD Master', 'BD Next Master', 
             'BP IT', 'BP Next IT', 'BT IT', 'BD IT', 'BD Next IT', 'Keterangan'
         ].join(',');
 
         rows = data.map(row => [
-            row.origin, row.dest, row.sysCode, // sysCode stores Service for Biaya view internal logic sometimes, but distinct cols here
+            row.origin, row.dest, row.serviceIT, row.serviceMaster, // serviceMaster stores Acuan Service in this logic
             row.bpMaster, row.bpNextMaster, row.btMaster, row.bdMaster, row.bdNextMaster,
             row.bpIT, row.bpNextIT, row.btIT, row.bdIT, row.bdNextIT,
             `"${row.keterangan}"`
@@ -224,6 +224,19 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                 throw new Error("Header DESTINASI atau SERVICE tidak ditemukan di file IT.");
             }
 
+            // Helper function to map IT Service to Master Acuan Service
+            const getAcuanService = (val: string) => {
+                const v = val.toUpperCase().trim();
+                // Group JTR
+                if (v === 'CRGTK' || v === 'JTR23' || v === 'JTR5_23') return 'JTR23';
+                // Group REG
+                if (v === 'REG05' || v === 'REG19' || v === 'REG23' || v === 'REGSUM') return 'REG23';
+                // Group YES
+                if (v === 'YES*' || v === 'YES19' || v === 'YES23') return 'YES23';
+                
+                return v; // Default fallback if no mapping found
+            };
+
             const totalItems = itData.length;
             const CHUNK_SIZE = 1000;
             const fullReport: FullValidationRow[] = [];
@@ -237,7 +250,11 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                 chunk.forEach((itRow, idx) => {
                     const rowIndex = i + idx + 1;
                     const dest = String(itRow[destKeyIT] || '').trim();
-                    const service = String(itRow[serviceKeyIT] || '').trim(); // e.g. "REG23"
+                    const rawService = String(itRow[serviceKeyIT] || '').trim();
+                    
+                    // Apply Mapping Logic
+                    const acuanService = getAcuanService(rawService);
+
                     const masterRow = masterMap.get(dest.toUpperCase());
 
                     const parseNum = (val: any) => parseInt((val || '0').replace(/[^0-9]/g, '')) || 0;
@@ -245,11 +262,11 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                     const reportRow: FullValidationRow = {
                         origin: String(itRow['ORIGIN'] || ''),
                         dest: dest,
-                        sysCode: service, // Using sysCode field to display Service in report logic if needed, or just serviceIT
+                        sysCode: rawService, // Using sysCode field to store original Service IT for display logic
                         
-                        serviceMaster: service, // Logic dictates we compare against this service
+                        serviceMaster: acuanService, // Display the Acuan Service used for lookup
                         tarifMaster: 0, slaFormMaster: 0, slaThruMaster: 0, // Unused in Biaya
-                        serviceIT: service,
+                        serviceIT: rawService,
                         tarifIT: 0, slaFormIT: 0, slaThruIT: 0, // Unused in Biaya
 
                         // Cost Fields
@@ -266,16 +283,14 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                         reportRow.keterangan = 'Master Data Tidak Ada (Destinasi)';
                         blanksCount++;
                         mismatches.push({ rowId: rowIndex, reasons: ['Master Data Tidak Ada'], details: [] });
-                        // Fill masters with 0
                         reportRow.bpMaster = 0; reportRow.bpNextMaster = 0; reportRow.btMaster = 0; reportRow.bdMaster = 0; reportRow.bdNextMaster = 0;
                     } else {
-                        // Dynamic Column Lookup in Master
-                        // Format: "BP [SERVICE]", "BP NEXT [SERVICE]"
+                        // Dynamic Column Lookup in Master using ACUAN SERVICE
+                        // Format: "BP [ACUAN_SERVICE]", "BP NEXT [ACUAN_SERVICE]"
                         const getMasterVal = (prefix: string) => {
-                            // Find key that contains prefix + service
-                            // Example: prefix="BP", service="REG23" -> search for "BP REG23"
+                            // Find key that contains prefix + acuan service
                             const key = Object.keys(masterRow).find(k => 
-                                k.toUpperCase() === `${prefix} ${service}`.toUpperCase()
+                                k.toUpperCase() === `${prefix} ${acuanService}`.toUpperCase()
                             );
                             return parseNum(key ? masterRow[key] : '0');
                         };
@@ -705,6 +720,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                                     <th className="bg-yellow-300 px-2 py-3 border-r min-w-[100px]">ORIGIN</th>
                                     <th className="bg-yellow-300 px-2 py-3 border-r min-w-[100px]">DEST</th>
                                     <th className="bg-yellow-300 px-2 py-3 border-r min-w-[80px]">SERVICE</th>
+                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[80px]">ACUAN SERVICE</th>
                                     <th className="bg-slate-200 px-2 py-3 border-r min-w-[60px]">BP Master</th>
                                     <th className="bg-slate-200 px-2 py-3 border-r min-w-[60px]">BP Next M</th>
                                     <th className="bg-slate-200 px-2 py-3 border-r min-w-[60px]">BT Master</th>
@@ -741,6 +757,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                                             </>
                                         ) : (
                                             <>
+                                            <td className="px-2 py-2 border-r bg-slate-50">{row.serviceMaster}</td>
                                             <td className="px-2 py-2 border-r bg-slate-50">{row.bpMaster?.toLocaleString()}</td>
                                             <td className="px-2 py-2 border-r bg-slate-50">{row.bpNextMaster?.toLocaleString()}</td>
                                             <td className="px-2 py-2 border-r bg-slate-50">{row.btMaster?.toLocaleString()}</td>
