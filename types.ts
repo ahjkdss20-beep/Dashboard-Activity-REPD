@@ -1,3 +1,5 @@
+
+
 export type Status = 'Pending' | 'In Progress' | 'Completed' | 'Overdue';
 
 export interface Job {
@@ -32,4 +34,29 @@ export interface User {
   name: string;
   role: UserRole;
   password?: string;
+}
+
+export interface ValidationLog {
+  id: string;
+  timestamp: string;
+  user: string;
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'BULK_IMPORT' | 'RESET_PASSWORD' | 'VALIDATION';
+  description: string;
+  category?: string;
+}
+
+export interface TarifRow {
+  ORIGIN: string;
+  DEST: string;
+  SYS_CODE: string;
+  SERVICE: string;
+  TARIF: string;
+  SLA_FORM: string;
+  SLA_THRU: string;
+  [key: string]: string | string[] | undefined; // Fallback
+}
+
+export interface ValidationResultRow extends TarifRow {
+  validationStatus: 'MATCH' | 'MISMATCH' | 'BLANK';
+  errors: string[];
 }

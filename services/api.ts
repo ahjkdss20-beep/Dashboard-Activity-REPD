@@ -1,9 +1,11 @@
-import { Job, User } from '../types';
+
+import { Job, User, ValidationLog } from '../types';
 import { JSONBIN_URL, JSONBIN_API_KEY } from '../constants';
 
 interface AppData {
   jobs: Job[];
   users: User[];
+  validationLogs: ValidationLog[];
 }
 
 interface JsonBinResponse {
@@ -32,7 +34,13 @@ export const api = {
       const data: JsonBinResponse = await response.json();
       
       // JSONBin v3 returns the actual data inside the "record" property
-      return data.record || { jobs: [], users: [] };
+      const record = data.record || {} as Partial<AppData>;
+      
+      return {
+        jobs: record.jobs || [],
+        users: record.users || [],
+        validationLogs: record.validationLogs || []
+      };
 
     } catch (error) {
       console.error('Error fetching data from JSONBin:', error);

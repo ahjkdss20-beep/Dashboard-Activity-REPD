@@ -1,9 +1,13 @@
+
+
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Layout } from './components/Layout';
 import { DashboardSummary } from './components/DashboardSummary';
 import { JobManager } from './components/JobManager';
 import { Login } from './components/Login';
-import { Job, User } from './types';
+import { TarifValidator } from './components/TarifValidator';
+import { ValidationHistory } from './components/ValidationHistory';
+import { Job, User, ValidationLog } from './types';
 import { AUTHORIZED_USERS } from './constants';
 import { api } from './services/api';
 
@@ -15,6 +19,7 @@ function App() {
 
   const [jobs, setJobs] = useState<Job[]>([]);
   const [users, setUsers] = useState<User[]>(AUTHORIZED_USERS);
+  const [validationLogs, setValidationLogs] = useState<ValidationLog[]>([]);
   
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [activeSubCategory, setActiveSubCategory] = useState<string | null>(null);
@@ -34,6 +39,10 @@ function App() {
         
         if (data.jobs && Array.isArray(data.jobs)) {
             setJobs(data.jobs);
+        }
+
+        if (data.validationLogs && Array.isArray(data.validationLogs)) {
+            setValidationLogs(data.validationLogs);
         }
 
         if (data.users && Array.isArray(data.users)) {
@@ -67,16 +76,18 @@ function App() {
     return () => clearInterval(intervalId);
   }, [fetchData]);
 
-  const saveToCloud = async (newJobs: Job[], newUsers: User[]) => {
+  const saveToCloud = async (newJobs: Job[], newUsers: User[], newLogs: ValidationLog[]) => {
     setIsSaving(true);
     // Optimistic update
     setJobs(newJobs);
     setUsers(newUsers);
+    setValidationLogs(newLogs);
 
     try {
         const success = await api.saveData({
             jobs: newJobs,
-            users: newUsers
+            users: newUsers,
+            validationLogs: newLogs
         });
         
         if (success) {
@@ -108,6 +119,21 @@ function App() {
     }
   }, [currentUser, users]);
 
+  const createLog = (action: ValidationLog['action'], description: string, category?: string): ValidationLog => {
+      return {
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          user: currentUser?.name || 'Unknown',
+          action,
+          description,
+          category
+      };
+  };
+
+  const handleValidationLog = (log: ValidationLog) => {
+      saveToCloud(jobs, users, [log, ...validationLogs]);
+  };
+
   const handleLogin = (user: User) => {
     // Get the freshest user data
     const freshUserData = users.find(u => u.email === user.email) || user;
@@ -122,8 +148,18 @@ function App() {
         const updatedUser = { ...targetUser, password: defaultPassword };
         const updatedUserList = users.map(u => u.email === targetUser.email ? updatedUser : u);
         
+        // Log reset
+        const newLog: ValidationLog = {
+            id: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+            user: 'System',
+            action: 'RESET_PASSWORD',
+            description: `Reset password for user ${targetUser.email}`
+        };
+        const updatedLogs = [newLog, ...validationLogs];
+
         // Save directly to cloud
-        await saveToCloud(jobs, updatedUserList);
+        await saveToCloud(jobs, updatedUserList, updatedLogs);
         return true;
     }
     return false;
@@ -143,7 +179,7 @@ function App() {
     const updatedUser = { ...actualUser, password: newPass };
     const updatedUserList = users.map(u => u.email === actualUser.email ? updatedUser : u);
     
-    saveToCloud(jobs, updatedUserList);
+    saveToCloud(jobs, updatedUserList, validationLogs);
     setCurrentUser(updatedUser);
     return true;
   };
@@ -155,24 +191,44 @@ function App() {
 
   const handleAddJob = (job: Job) => {
     const newJobs = [job, ...jobs];
-    saveToCloud(newJobs, users);
+    const newLog = createLog('CREATE', `Menambahkan pekerjaan baru: ${job.jobType} di ${job.branchDept}`, job.category);
+    saveToCloud(newJobs, users, [newLog, ...validationLogs]);
   };
 
   const handleUpdateJob = (id: string, updates: Partial<Job>) => {
+    const oldJob = jobs.find(j => j.id === id);
     const newJobs = jobs.map(j => j.id === id ? { ...j, ...updates } : j);
-    saveToCloud(newJobs, users);
+    
+    // Create detailed log
+    let desc = `Update data pekerjaan`;
+    if (oldJob) {
+        if (updates.status && updates.status !== oldJob.status) {
+            desc = `Mengubah status: ${oldJob.jobType} (${oldJob.branchDept}) dari ${oldJob.status} menjadi ${updates.status}`;
+        } else if (updates.deadline && updates.deadline !== oldJob.deadline) {
+            desc = `Mengubah dateline: ${oldJob.jobType} (${oldJob.branchDept}) menjadi ${updates.deadline}`;
+        } else {
+             desc = `Mengedit detail pekerjaan: ${oldJob.jobType} (${oldJob.branchDept})`;
+        }
+    }
+
+    const newLog = createLog('UPDATE', desc, oldJob?.category);
+    saveToCloud(newJobs, users, [newLog, ...validationLogs]);
   };
 
   const handleDeleteJob = (id: string) => {
     if (confirm("Apakah anda yakin ingin menghapus data ini?")) {
+      const jobToDelete = jobs.find(j => j.id === id);
       const newJobs = jobs.filter(j => j.id !== id);
-      saveToCloud(newJobs, users);
+      
+      const newLog = createLog('DELETE', `Menghapus pekerjaan: ${jobToDelete?.jobType} (${jobToDelete?.branchDept})`, jobToDelete?.category);
+      saveToCloud(newJobs, users, [newLog, ...validationLogs]);
     }
   };
 
   const handleBulkAdd = (addedJobs: Job[]) => {
     const newJobs = [...addedJobs, ...jobs];
-    saveToCloud(newJobs, users);
+    const newLog = createLog('BULK_IMPORT', `Import masal ${addedJobs.length} data pekerjaan`, addedJobs[0]?.category);
+    saveToCloud(newJobs, users, [newLog, ...validationLogs]);
   };
 
   const visibleJobs = useMemo(() => {
@@ -198,6 +254,46 @@ function App() {
     );
   }
 
+  const renderContent = () => {
+      if (activeCategory === 'Validasi') {
+          if (activeSubCategory === 'History') {
+              return <ValidationHistory logs={validationLogs} />;
+          }
+          return <TarifValidator onLogValidation={handleValidationLog} currentUser={currentUser} />;
+      }
+      
+      if (!activeCategory) {
+          return (
+            <DashboardSummary 
+                jobs={visibleJobs} 
+                onBulkAddJobs={handleBulkAdd}
+                onUpdateJob={handleUpdateJob}
+                isLoading={isLoading}
+                isSaving={isSaving}
+                lastUpdated={lastUpdated}
+                connectionError={connectionError}
+            />
+          );
+      }
+
+      if (activeSubCategory) {
+          return (
+            <JobManager 
+                category={activeCategory}
+                subCategory={activeSubCategory}
+                jobs={visibleJobs}
+                onAddJob={handleAddJob}
+                onUpdateJob={handleUpdateJob}
+                onDeleteJob={handleDeleteJob}
+                onBulkAddJobs={handleBulkAdd}
+                currentUser={currentUser}
+            />
+          );
+      }
+
+      return null;
+  };
+
   return (
     <Layout 
       activeCategory={activeCategory} 
@@ -214,30 +310,8 @@ function App() {
         </div>
       )}
 
-      {!activeCategory ? (
-        <DashboardSummary 
-            jobs={visibleJobs} 
-            onBulkAddJobs={handleBulkAdd}
-            onUpdateJob={handleUpdateJob}
-            isLoading={isLoading}
-            isSaving={isSaving}
-            lastUpdated={lastUpdated}
-            connectionError={connectionError}
-        />
-      ) : (
-        activeSubCategory && (
-          <JobManager 
-            category={activeCategory}
-            subCategory={activeSubCategory}
-            jobs={visibleJobs}
-            onAddJob={handleAddJob}
-            onUpdateJob={handleUpdateJob}
-            onDeleteJob={handleDeleteJob}
-            onBulkAddJobs={handleBulkAdd}
-            currentUser={currentUser}
-          />
-        )
-      )}
+      {renderContent()}
+
     </Layout>
   );
 }
