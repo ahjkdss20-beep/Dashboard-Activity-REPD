@@ -31,7 +31,6 @@ export const JobManager: React.FC<JobManagerProps> = ({
   const [formData, setFormData] = useState<Partial<Job>>({
     status: 'Pending',
     dateInput: new Date().toISOString().split('T')[0],
-    keterangan: ''
   });
 
   const isProductionMaster = category === "Produksi Master Data";
@@ -44,8 +43,7 @@ export const JobManager: React.FC<JobManagerProps> = ({
       jobType: job.jobType,
       status: job.status,
       deadline: job.deadline,
-      activationDate: job.activationDate,
-      keterangan: job.keterangan || ''
+      activationDate: job.activationDate
     });
     setView('form');
   };
@@ -58,8 +56,7 @@ export const JobManager: React.FC<JobManagerProps> = ({
       dateInput: new Date().toISOString().split('T')[0],
       branchDept: '',
       jobType: '',
-      deadline: '',
-      keterangan: ''
+      deadline: ''
     });
   };
 
@@ -74,8 +71,7 @@ export const JobManager: React.FC<JobManagerProps> = ({
             jobType: formData.jobType,
             status: formData.status as Status,
             deadline: formData.deadline,
-            activationDate: isProductionMaster ? formData.activationDate : undefined,
-            keterangan: formData.keterangan
+            activationDate: isProductionMaster ? formData.activationDate : undefined
         });
     } else {
         // Create new
@@ -89,7 +85,6 @@ export const JobManager: React.FC<JobManagerProps> = ({
             status: (formData.status as Status) || 'Pending',
             deadline: formData.deadline || '',
             activationDate: isProductionMaster ? formData.activationDate : undefined,
-            keterangan: formData.keterangan || '',
             createdBy: currentUser.email
         };
         onAddJob(newJob);
@@ -100,15 +95,15 @@ export const JobManager: React.FC<JobManagerProps> = ({
 
   const handleDownloadTemplate = () => {
     const headers = isProductionMaster
-      ? "Tanggal Input (YYYY-MM-DD),Cabang/Dept,Jenis Pekerjaan,Status,Dateline (YYYY-MM-DD),Keterangan,Tanggal Aktifasi (YYYY-MM-DD)"
-      : "Tanggal Input (YYYY-MM-DD),Cabang/Dept,Jenis Pekerjaan,Status,Dateline (YYYY-MM-DD),Keterangan";
+      ? "Tanggal Input (YYYY-MM-DD),Cabang/Dept,Jenis Pekerjaan,Status,Dateline (YYYY-MM-DD),Tanggal Aktifasi (YYYY-MM-DD)"
+      : "Tanggal Input (YYYY-MM-DD),Cabang/Dept,Jenis Pekerjaan,Status,Dateline (YYYY-MM-DD)";
 
     const today = new Date().toISOString().split('T')[0];
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
     const exampleRow = isProductionMaster
-      ? `${today},Jakarta,Input Master Vendor,Pending,${nextWeek},Notes optional,${today}`
-      : `${today},Bandung,Update Routing,In Progress,${nextWeek},Notes optional`;
+      ? `${today},Jakarta,Input Master Vendor,Pending,${nextWeek},${today}`
+      : `${today},Bandung,Update Routing,In Progress,${nextWeek}`;
 
     const csvContent = "data:text/csv;charset=utf-8," + headers + "\n" + exampleRow;
     const encodedUri = encodeURI(csvContent);
@@ -142,9 +137,6 @@ export const JobManager: React.FC<JobManagerProps> = ({
                 validStatus = rawStatus;
             }
 
-            // CSV Columns mapping based on template
-            // 0: Date, 1: Branch, 2: Type, 3: Status, 4: Deadline, 5: Keterangan, 6: Activation (if master)
-            
             newJobs.push({
                 id: crypto.randomUUID(),
                 category,
@@ -154,8 +146,7 @@ export const JobManager: React.FC<JobManagerProps> = ({
                 jobType: cols[2]?.trim() || 'Imported Job',
                 status: validStatus,
                 deadline: cols[4]?.trim() || new Date().toISOString().split('T')[0],
-                keterangan: cols[5]?.trim() || '',
-                activationDate: isProductionMaster ? cols[6]?.trim() : undefined,
+                activationDate: isProductionMaster ? cols[5]?.trim() : undefined,
                 createdBy: currentUser.email
             });
         }
@@ -176,8 +167,7 @@ export const JobManager: React.FC<JobManagerProps> = ({
     j.category === category && 
     j.subCategory === subCategory &&
     (j.branchDept.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     j.jobType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     (j.keterangan && j.keterangan.toLowerCase().includes(searchTerm.toLowerCase())))
+     j.jobType.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const getStatusColor = (status: Status, deadline: string) => {
@@ -288,16 +278,6 @@ export const JobManager: React.FC<JobManagerProps> = ({
                   />
                 </div>
 
-                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Keterangan (Optional)</label>
-                  <textarea 
-                    placeholder="Tambahkan catatan atau keterangan tambahan..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[80px]"
-                    value={formData.keterangan || ''}
-                    onChange={e => setFormData({...formData, keterangan: e.target.value})}
-                  />
-                </div>
-
                 {isProductionMaster && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Aktifasi</label>
@@ -359,7 +339,7 @@ export const JobManager: React.FC<JobManagerProps> = ({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input 
                 type="text" 
-                placeholder="Cari Cabang, Jenis Pekerjaan, atau Keterangan..." 
+                placeholder="Cari berdasarkan Cabang atau Jenis Pekerjaan..." 
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
@@ -373,7 +353,6 @@ export const JobManager: React.FC<JobManagerProps> = ({
                     <th className="p-4 whitespace-nowrap">Tanggal</th>
                     <th className="p-4 whitespace-nowrap">Cabang / Dept</th>
                     <th className="p-4">Jenis Pekerjaan</th>
-                    <th className="p-4">Keterangan</th>
                     {isProductionMaster && <th className="p-4 whitespace-nowrap">Aktifasi</th>}
                     <th className="p-4 whitespace-nowrap">Status</th>
                     <th className="p-4 whitespace-nowrap">Dateline</th>
@@ -384,7 +363,7 @@ export const JobManager: React.FC<JobManagerProps> = ({
                 <tbody className="divide-y divide-gray-100">
                   {filteredJobs.length === 0 ? (
                     <tr>
-                      <td colSpan={isProductionMaster ? 9 : 8} className="p-8 text-center text-gray-400">
+                      <td colSpan={isProductionMaster ? 8 : 7} className="p-8 text-center text-gray-400">
                         Belum ada data pekerjaan. Gunakan tombol "Import Excel/CSV" atau "Tambah Manual".
                       </td>
                     </tr>
@@ -394,7 +373,6 @@ export const JobManager: React.FC<JobManagerProps> = ({
                         <td className="p-4">{new Date(job.dateInput).toLocaleDateString('id-ID')}</td>
                         <td className="p-4 font-medium text-gray-800">{job.branchDept}</td>
                         <td className="p-4 max-w-xs">{job.jobType}</td>
-                        <td className="p-4 max-w-xs text-gray-500 italic">{job.keterangan || '-'}</td>
                         {isProductionMaster && (
                           <td className="p-4">{job.activationDate ? new Date(job.activationDate).toLocaleDateString('id-ID') : '-'}</td>
                         )}
