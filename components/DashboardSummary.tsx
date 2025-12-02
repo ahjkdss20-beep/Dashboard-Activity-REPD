@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useRef } from 'react';
 import { Job, Status } from '../types';
 import { MENU_STRUCTURE } from '../constants';
@@ -436,7 +437,7 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({
                 data={barData} 
                 onClick={(data) => {
                   if (data && data.activeLabel) {
-                    setFilterStatus(data.activeLabel);
+                    setFilterStatus(String(data.activeLabel));
                   }
                 }}
               >

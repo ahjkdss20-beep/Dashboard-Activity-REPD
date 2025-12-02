@@ -254,7 +254,11 @@ function App() {
 
   const renderContent = () => {
       if (activeCategory === 'Validasi') {
-          // Updated to pass category prop
+          // Check for subcategory to decide validation type
+          if (activeSubCategory === 'Biaya Validasi') {
+             return <TarifValidator category="BIAYA" />;
+          }
+          // Default to Tarif if not Biaya or specifically Tarif
           return <TarifValidator category="TARIF" />;
       }
       

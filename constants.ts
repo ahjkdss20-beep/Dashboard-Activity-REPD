@@ -20,7 +20,7 @@ export const MENU_STRUCTURE: MenuStructure = {
   },
   "Validasi": {
     name: "Validasi",
-    submenus: ["Tarif Otomatis"]
+    submenus: ["Tarif Otomatis", "Biaya Validasi"]
   }
 };
 
@@ -30,7 +30,7 @@ export const JNE_BLUE = "#002F6C";
 export const LOGO_URL = "https://lh3.googleusercontent.com/d/19L5QBkcuSDrfWX_uqZGVUkpAlriZijp1";
 
 // Google Apps Script Configuration
-export const GOOGLE_SCRIPT_URL = "";
+export const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby0EwNykAaEfujJ3OK7glHks5OtNpZfEV6XcsDKtv1G5qcLdQglmUFzd4yiaZsRkBkg/exec";
 
 // JSONBin.io Configuration
 export const JSONBIN_BIN_ID = "692843aa43b1c97be9c875fd";
@@ -42,6 +42,6 @@ export const AUTHORIZED_USERS: User[] = [
   { email: "Ahmad.fauzan@jne.co.id", name: "Ahmad Fauzan", role: "Admin", password: "000000" },
   { email: "agus.permana@jne.co.id", name: "Agus Permana", role: "User", password: "000000" },
   { email: "rita.sumardi@jne.co.id", name: "Rita Sumardi", role: "User", password: "000000" },
-  { email: "adm.ppdd@jne.co.id", name: "Admin PPDD", role: "Admin", password: "000000" },
+  { email: "adm.ppdd@jne.co.id", name: "Admin PPDD", role: "User", password: "000000" },
   { email: "davis.gunawan@jne.co.id", name: "Davis Gunawan", role: "Admin", password: "000000" }
 ];
