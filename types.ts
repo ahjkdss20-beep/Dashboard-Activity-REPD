@@ -12,6 +12,7 @@ export interface Job {
   status: Status;
   deadline: string;
   activationDate?: string;
+  keterangan?: string; // New field
   notes?: string;
   createdBy?: string;
 }
