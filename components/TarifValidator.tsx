@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { Upload, FileUp, AlertTriangle, CheckCircle2, Download, Eye, X, Table as TableIcon, History, RotateCcw, Trash2, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Upload, FileUp, AlertTriangle, CheckCircle2, Download, Eye, X, Table as TableIcon, History, RotateCcw, Trash2, HelpCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ValidationResult, ValidationMismatch, FullValidationRow, ValidationDetail, ValidationHistoryItem, ValidationCategory } from '../types';
 
 interface TarifValidatorProps {
@@ -12,9 +12,14 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
   const [fileMaster, setFileMaster] = useState<File | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [progress, setProgress] = useState(0); 
+  const [statusMessage, setStatusMessage] = useState('');
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [selectedMismatch, setSelectedMismatch] = useState<ValidationMismatch | null>(null);
   const [showFullReport, setShowFullReport] = useState(false);
+  
+  // Pagination State for Modal
+  const [currentPage, setCurrentPage] = useState(1);
+  const ROWS_PER_PAGE = 50;
   
   const [history, setHistory] = useState<ValidationHistoryItem[]>([]);
   const [reportFilter, setReportFilter] = useState<'ALL' | 'MATCH' | 'MISMATCH' | 'BLANK'>('ALL');
@@ -41,6 +46,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
       setSelectedMismatch(null);
       setShowFullReport(false);
       setProgress(0);
+      setStatusMessage('');
   }, [category]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'IT' | 'MASTER') => {
@@ -65,7 +71,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
     } else {
         // BIAYA TEMPLATES
         if (type === 'IT') {
-            content = 'ORIGIN,DESTINASI,SERVICE,BT,BD,BD NEXT,BP,BP NEXT\nAMI20100,BDJ10502,REG23,1500,3200,0,0,0';
+            content = 'ORIGIN,DESTINASI,SERVICE,BT,BD,BD NEXT,BP,BP NEXT\nAMI20100,BDJ10502,REG19,1500,3200,0,0,0';
             filename = `Template_Data_IT_BIAYA.csv`;
         } else {
             content = 'DESTINASI,ZONA,BP OKE23,BP NEXT OKE23,BT OKE23,BD OKE23,BP REG23,BP NEXT REG23,BT REG23,BD REG23,BD NEXT REG23\nAMI10000,A,1500,0,1200,3200,2000,0,1500,3500,0';
@@ -91,6 +97,15 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
     let header = '';
     let rows: string[] = [];
 
+    // Helper to escape CSV fields
+    const esc = (val: any) => {
+        const str = String(val === undefined || val === null ? '' : val);
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+    };
+
     if (category === 'TARIF') {
         header = [
             'ORIGIN', 'DEST', 'SYS_CODE', 
@@ -99,24 +114,24 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
         ].join(',');
 
         rows = data.map(row => [
-            row.origin, row.dest, row.sysCode,
-            row.serviceMaster, row.tarifMaster, row.slaFormMaster, row.slaThruMaster,
-            row.serviceIT, row.tarifIT, row.slaFormIT, row.slaThruIT,
-            `"${row.keterangan}"`
+            esc(row.origin), esc(row.dest), esc(row.sysCode),
+            esc(row.serviceMaster), esc(row.tarifMaster), esc(row.slaFormMaster), esc(row.slaThruMaster),
+            esc(row.serviceIT), esc(row.tarifIT), esc(row.slaFormIT), esc(row.slaThruIT),
+            esc(row.keterangan)
         ].join(','));
     } else {
         // BIAYA HEADER
         header = [
-            'ORIGIN', 'DESTINASI', 'SERVICE', 
+            'ORIGIN', 'DESTINASI', 'SERVICE', 'ACUAN SERVICE',
             'BP Master', 'BP Next Master', 'BT Master', 'BD Master', 'BD Next Master', 
             'BP IT', 'BP Next IT', 'BT IT', 'BD IT', 'BD Next IT', 'Keterangan'
         ].join(',');
 
         rows = data.map(row => [
-            row.origin, row.dest, row.sysCode, // sysCode stores Service for Biaya view internal logic sometimes, but distinct cols here
-            row.bpMaster, row.bpNextMaster, row.btMaster, row.bdMaster, row.bdNextMaster,
-            row.bpIT, row.bpNextIT, row.btIT, row.bdIT, row.bdNextIT,
-            `"${row.keterangan}"`
+            esc(row.origin), esc(row.dest), esc(row.serviceIT), esc(row.serviceMaster), 
+            esc(row.bpMaster), esc(row.bpNextMaster), esc(row.btMaster), esc(row.bdMaster), esc(row.bdNextMaster),
+            esc(row.bpIT), esc(row.bpNextIT), esc(row.btIT), esc(row.bdIT), esc(row.bdNextIT),
+            esc(row.keterangan)
         ].join(','));
     }
 
@@ -132,61 +147,102 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
     window.URL.revokeObjectURL(url);
   };
 
-  // Robust CSV Reader
-  const readCSV = (file: File): Promise<any[]> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        let text = e.target?.result as string;
-        if (!text) { resolve([]); return; }
-        
-        text = text.replace(/^\uFEFF/, '');
-        const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-        const lines = normalizedText.split('\n').filter(line => line.trim() !== '');
-        
-        if (lines.length < 2) { resolve([]); return; }
+  // --- CHUNKED CSV PROCESSOR (OPTIMIZED FOR MILLIONS OF ROWS) ---
+  const CHUNK_SIZE = 1024 * 1024 * 5; // Process in 5MB Chunks
 
-        const firstLine = lines[0];
-        const commaCount = (firstLine.match(/,/g) || []).length;
-        const semiCount = (firstLine.match(/;/g) || []).length;
-        const delimiter = semiCount > commaCount ? ';' : ',';
-        
-        const parseLine = (line: string) => {
-             const result: string[] = [];
-             let start = 0;
-             let inQuotes = false;
-             for (let i = 0; i < line.length; i++) {
-                 if (line[i] === '"') { inQuotes = !inQuotes; }
-                 else if (line[i] === delimiter && !inQuotes) {
-                     result.push(line.substring(start, i));
-                     start = i + 1;
-                 }
-             }
-             result.push(line.substring(start));
-             return result.map(v => v.trim().replace(/^"|"$/g, ''));
-        };
+  const parseLine = (line: string, delimiter: string) => {
+    const result: string[] = [];
+    let start = 0;
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+        if (line[i] === '"') { inQuotes = !inQuotes; }
+        else if (line[i] === delimiter && !inQuotes) {
+            result.push(line.substring(start, i));
+            start = i + 1;
+        }
+    }
+    result.push(line.substring(start));
+    return result.map(v => v.trim().replace(/^"|"$/g, ''));
+  };
 
-        const headers = parseLine(lines[0]);
-        
-        const data = lines.slice(1).map(line => {
-            const values = parseLine(line);
-            const row: any = {};
-            const hasContent = values.some(v => v.trim() !== '');
-            if (!hasContent) return null;
+  const processFileChunked = async (
+      file: File, 
+      onHeader: (headers: string[], delimiter: string) => void,
+      onRows: (rows: any[]) => void,
+      onProgress: (percent: number) => void
+  ) => {
+      let offset = 0;
+      let leftover = '';
+      let headers: string[] | null = null;
+      let delimiter = ',';
+      
+      const fileSize = file.size;
 
-            headers.forEach((header, idx) => {
-                if (header) {
-                    row[header.trim()] = values[idx] || '';
-                }
-            });
-            return row;
-        }).filter(r => r !== null);
-        
-        resolve(data);
-      };
-      reader.onerror = (err) => reject(err);
-      reader.readAsText(file);
-    });
+      while (offset < fileSize) {
+          const slice = file.slice(offset, offset + CHUNK_SIZE);
+          const text = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = (e) => resolve(e.target?.result as string);
+              reader.onerror = reject;
+              reader.readAsText(slice);
+          });
+
+          // Handle BOM (Byte Order Mark) for Excel CSVs
+          const cleanText = (offset === 0) ? text.replace(/^\uFEFF/, '') : text;
+          
+          const rawLines = (leftover + cleanText).split(/\r\n|\n/);
+          
+          if (offset + CHUNK_SIZE < fileSize) {
+              leftover = rawLines.pop() || '';
+          } else {
+              leftover = '';
+          }
+
+          const validLines = rawLines.filter(l => l.trim().length > 0);
+
+          if (validLines.length > 0) {
+              let startIndex = 0;
+
+              if (!headers) {
+                  const firstLine = validLines[0];
+                  // Detect delimiter
+                  const commaCount = (firstLine.match(/,/g) || []).length;
+                  const semiCount = (firstLine.match(/;/g) || []).length;
+                  delimiter = semiCount > commaCount ? ';' : ',';
+                  
+                  headers = parseLine(firstLine, delimiter);
+                  onHeader(headers, delimiter);
+                  startIndex = 1;
+              }
+
+              const rows: any[] = [];
+              for (let i = startIndex; i < validLines.length; i++) {
+                  const values = parseLine(validLines[i], delimiter);
+                  const row: any = {};
+                  // Fast Row Construction
+                  if (values.length === 1 && values[0] === '') continue;
+
+                  headers.forEach((h, idx) => {
+                      if (h) row[h.trim()] = values[idx] || '';
+                  });
+                  rows.push(row);
+              }
+              // Send batch of rows
+              onRows(rows);
+          }
+
+          offset += CHUNK_SIZE;
+          onProgress(Math.min(Math.round((offset / fileSize) * 100), 100));
+          
+          // Yield to UI thread to allow Progress Bar update
+          await new Promise(resolve => setTimeout(resolve, 0));
+      }
+  };
+
+  // Safe Render: Prevents crash if value is null/undefined
+  const safeRender = (val: number | undefined | null) => {
+      if (val === undefined || val === null || isNaN(val)) return '0';
+      return val.toLocaleString('id-ID');
   };
 
   const processValidation = async () => {
@@ -194,260 +250,275 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
     
     setIsValidating(true);
     setProgress(0);
+    setStatusMessage('Mempersiapkan data...');
     setResult(null);
 
+    // Artificial delay to let UI render the start state
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     try {
-        const [itData, masterData] = await Promise.all([readCSV(fileIT), readCSV(fileMaster)]);
+        // --- 1. PROCESS MASTER DATA ---
+        setStatusMessage('Membaca Master Data (Acuan)...');
+        const masterMap = new Map<string, any>();
         
-        if (itData.length === 0 || masterData.length === 0) {
-            alert("Salah satu file kosong atau format tidak valid (tidak ada data).");
-            setIsValidating(false);
-            return;
+        await processFileChunked(
+            fileMaster,
+            () => {}, // Header callback ignored for master (handled inside row processing via keys)
+            (rows) => {
+                if (category === 'BIAYA') {
+                    const keys = Object.keys(rows[0] || {});
+                    const destKey = keys.find(k => k.toUpperCase().includes('DEST')) || 'DESTINASI';
+                    rows.forEach(row => {
+                        // Key for Biaya is DESTINASI
+                        const k = String(row[destKey] || '').trim().toUpperCase();
+                        if (k) masterMap.set(k, row);
+                    });
+                } else {
+                    const keys = Object.keys(rows[0] || {});
+                    const sysKey = keys.find(k => k.trim().replace(/_/g, '').toUpperCase() === 'SYSCODE');
+                    if (!sysKey) return; 
+                    rows.forEach(row => {
+                        // Key for Tarif is SYS_CODE
+                        const k = String(row[sysKey] || '').trim().toUpperCase();
+                        if (k) masterMap.set(k, row);
+                    });
+                }
+            },
+            (pct) => setProgress(Math.round(pct * 0.3)) // Master read is 0-30% of progress
+        );
+
+        if (masterMap.size === 0) {
+            throw new Error("Gagal membaca Master Data atau kolom Key (SYS_CODE/DESTINASI) tidak ditemukan.");
         }
 
-        // --- BIAYA LOGIC ---
-        if (category === 'BIAYA') {
-            // Master Map: Key = DESTINASI (uppercase trim)
-            const masterMap = new Map<string, any>();
-            const destKeyMaster = Object.keys(masterData[0]).find(k => k.toUpperCase().includes('DEST')) || 'DESTINASI';
-            
-            masterData.forEach(row => {
-                const key = String(row[destKeyMaster] || '').trim().toUpperCase();
-                if(key) masterMap.set(key, row);
-            });
+        // --- 2. PROCESS IT DATA & VALIDATE ---
+        setStatusMessage('Memvalidasi Data IT (Baris per baris)...');
+        
+        const fullReport: FullValidationRow[] = [];
+        const mismatches: ValidationMismatch[] = [];
+        let matchesCount = 0;
+        let blanksCount = 0;
+        let rowIndexGlobal = 0;
 
-            // IT Data Key = DESTINASI
-            const destKeyIT = Object.keys(itData[0]).find(k => k.toUpperCase().includes('DEST')) || 'DESTINASI';
-            const serviceKeyIT = Object.keys(itData[0]).find(k => k.toUpperCase().includes('SERVICE')) || 'SERVICE';
+        const getAcuanService = (val: string) => {
+            const v = val.toUpperCase().trim();
+            if (['CRGTK', 'JTR23', 'JTR5_23'].includes(v)) return 'JTR23';
+            if (['REG05', 'REG19', 'REG23', 'REGSUM'].includes(v)) return 'REG23';
+            if (v.startsWith('YES') || ['YES19', 'YES23'].includes(v)) return 'YES23';
+            return v; // Default: use self if not mapped
+        };
 
-            if (!destKeyIT || !serviceKeyIT) {
-                throw new Error("Header DESTINASI atau SERVICE tidak ditemukan di file IT.");
-            }
+        const parseNum = (val: any) => {
+            if (!val) return 0;
+            let str = String(val).trim();
+            str = str.replace(/[.,]00$/, ''); // Remove trailing decimals
+            const clean = str.replace(/[^0-9-]/g, ''); // Keep only digits and minus sign
+            return parseInt(clean, 10) || 0;
+        };
 
-            const totalItems = itData.length;
-            const CHUNK_SIZE = 1000;
-            const fullReport: FullValidationRow[] = [];
-            const mismatches: ValidationMismatch[] = [];
-            let matchesCount = 0;
-            let blanksCount = 0;
+        await processFileChunked(
+            fileIT,
+            (headers) => {
+                 if (category === 'BIAYA') {
+                     const hasDest = headers.some(h => h.toUpperCase().includes('DEST'));
+                     const hasServ = headers.some(h => h.toUpperCase().includes('SERVICE'));
+                     if (!hasDest || !hasServ) throw new Error("File IT harus memiliki kolom DESTINASI dan SERVICE");
+                 } else {
+                     const hasSys = headers.some(h => h.trim().replace(/_/g, '').toUpperCase() === 'SYSCODE');
+                     if (!hasSys) throw new Error("File IT harus memiliki kolom SYS_CODE");
+                 }
+            },
+            (rows) => {
+                rows.forEach((itRow) => {
+                    rowIndexGlobal++;
+                    const rowIndex = rowIndexGlobal;
 
-            for (let i = 0; i < totalItems; i += CHUNK_SIZE) {
-                const chunk = itData.slice(i, i + CHUNK_SIZE);
+                    if (category === 'BIAYA') {
+                         // --- LOGIKA VALIDASI BIAYA ---
+                         const keys = Object.keys(itRow);
+                         const destKey = keys.find(k => k.toUpperCase().includes('DEST')) || 'DESTINASI';
+                         const serviceKey = keys.find(k => k.toUpperCase().includes('SERVICE')) || 'SERVICE';
 
-                chunk.forEach((itRow, idx) => {
-                    const rowIndex = i + idx + 1;
-                    const dest = String(itRow[destKeyIT] || '').trim();
-                    const service = String(itRow[serviceKeyIT] || '').trim(); // e.g. "REG23"
-                    const masterRow = masterMap.get(dest.toUpperCase());
+                         const dest = String(itRow[destKey] || '').trim();
+                         const rawService = String(itRow[serviceKey] || '').trim();
+                         const acuanService = getAcuanService(rawService);
 
-                    const parseNum = (val: any) => parseInt((val || '0').replace(/[^0-9]/g, '')) || 0;
+                         // Lookup Master using DESTINASI
+                         const masterRow = masterMap.get(dest.toUpperCase());
 
-                    const reportRow: FullValidationRow = {
-                        origin: String(itRow['ORIGIN'] || ''),
-                        dest: dest,
-                        sysCode: service, // Using sysCode field to display Service in report logic if needed, or just serviceIT
-                        
-                        serviceMaster: service, // Logic dictates we compare against this service
-                        tarifMaster: 0, slaFormMaster: 0, slaThruMaster: 0, // Unused in Biaya
-                        serviceIT: service,
-                        tarifIT: 0, slaFormIT: 0, slaThruIT: 0, // Unused in Biaya
+                         const reportRow: FullValidationRow = {
+                            origin: String(itRow['ORIGIN'] || ''),
+                            dest: dest,
+                            sysCode: rawService, // In Biaya mode, store raw service here for display
+                            serviceMaster: acuanService,
+                            tarifMaster: 0, slaFormMaster: 0, slaThruMaster: 0, 
+                            serviceIT: rawService,
+                            tarifIT: 0, slaFormIT: 0, slaThruIT: 0, 
 
-                        // Cost Fields
-                        bpIT: parseNum(itRow['BP']),
-                        bpNextIT: parseNum(itRow['BP NEXT'] || itRow['BP_NEXT']),
-                        btIT: parseNum(itRow['BT']),
-                        bdIT: parseNum(itRow['BD']),
-                        bdNextIT: parseNum(itRow['BD NEXT'] || itRow['BD_NEXT']),
+                            bpIT: parseNum(itRow['BP']),
+                            bpNextIT: parseNum(itRow['BP NEXT'] || itRow['BP_NEXT']),
+                            btIT: parseNum(itRow['BT']),
+                            bdIT: parseNum(itRow['BD']),
+                            bdNextIT: parseNum(itRow['BD NEXT'] || itRow['BD_NEXT']),
+                            
+                            keterangan: ''
+                         };
 
-                        keterangan: ''
-                    };
+                         if (!masterRow) {
+                             reportRow.keterangan = 'Master Data Tidak Ada (Destinasi)';
+                             blanksCount++;
+                             mismatches.push({ rowId: rowIndex, reasons: ['Master Data Tidak Ada'], details: [] });
+                             // Init zeroes
+                             reportRow.bpMaster = 0; reportRow.bpNextMaster = 0; reportRow.btMaster = 0; reportRow.bdMaster = 0; reportRow.bdNextMaster = 0;
+                         } else {
+                             // Dynamic Column Lookup based on Acuan Service (e.g. "BP REG23")
+                             const getMasterVal = (prefix: string) => {
+                                 const target = `${prefix} ${acuanService}`.toUpperCase().replace(/\s+/g, ' ');
+                                 const key = Object.keys(masterRow).find(k => 
+                                     k.toUpperCase().replace(/\s+/g, ' ') === target
+                                 );
+                                 // Jika kolom spesifik tidak ada, return 0 (anggap di master nilainya 0)
+                                 return parseNum(key ? masterRow[key] : '0');
+                             };
 
-                    if (!masterRow) {
-                        reportRow.keterangan = 'Master Data Tidak Ada (Destinasi)';
-                        blanksCount++;
-                        mismatches.push({ rowId: rowIndex, reasons: ['Master Data Tidak Ada'], details: [] });
-                        // Fill masters with 0
-                        reportRow.bpMaster = 0; reportRow.bpNextMaster = 0; reportRow.btMaster = 0; reportRow.bdMaster = 0; reportRow.bdNextMaster = 0;
+                             reportRow.bpMaster = getMasterVal('BP');
+                             reportRow.bpNextMaster = getMasterVal('BP NEXT');
+                             reportRow.btMaster = getMasterVal('BT');
+                             reportRow.bdMaster = getMasterVal('BD');
+                             reportRow.bdNextMaster = getMasterVal('BD NEXT');
+
+                             const issues: string[] = [];
+                             const details: ValidationDetail[] = [];
+                             const check = (col: string, valIT: number | undefined, valMaster: number | undefined) => {
+                                 const v1 = valIT || 0;
+                                 const v2 = valMaster || 0;
+                                 const match = v1 === v2;
+                                 if (!match) issues.push(col);
+                                 details.push({ column: col, itValue: v1, masterValue: v2, isMatch: match });
+                             };
+
+                             check('BP', reportRow.bpIT, reportRow.bpMaster);
+                             check('BP NEXT', reportRow.bpNextIT, reportRow.bpNextMaster);
+                             check('BT', reportRow.btIT, reportRow.btMaster);
+                             check('BD', reportRow.bdIT, reportRow.bdMaster);
+                             check('BD NEXT', reportRow.bdNextIT, reportRow.bdNextMaster);
+
+                             if (issues.length === 0) {
+                                 reportRow.keterangan = 'Sesuai';
+                                 matchesCount++;
+                             } else {
+                                 reportRow.keterangan = `Tidak sesuai: ${issues.join(', ')}`;
+                                 mismatches.push({ rowId: rowIndex, reasons: issues, details: details });
+                             }
+                         }
+                         fullReport.push(reportRow);
+
                     } else {
-                        // Dynamic Column Lookup in Master
-                        // Format: "BP [SERVICE]", "BP NEXT [SERVICE]"
-                        const getMasterVal = (prefix: string) => {
-                            // Find key that contains prefix + service
-                            // Example: prefix="BP", service="REG23" -> search for "BP REG23"
-                            const key = Object.keys(masterRow).find(k => 
-                                k.toUpperCase() === `${prefix} ${service}`.toUpperCase()
-                            );
-                            return parseNum(key ? masterRow[key] : '0');
+                        // --- LOGIKA VALIDASI TARIF ---
+                        const keys = Object.keys(itRow);
+                        const sysKey = keys.find(k => k.trim().replace(/_/g, '').toUpperCase() === 'SYSCODE');
+                        const sysCode = String(itRow[sysKey!] || '').trim().toUpperCase();
+
+                        const masterRow = masterMap.get(sysCode);
+                        
+                        const findVal = (row: any, keyStart: string) => {
+                            if (!row) return '';
+                            const key = Object.keys(row).find(k => k.toUpperCase().startsWith(keyStart.toUpperCase()));
+                            return key ? row[key] : '';
                         };
 
-                        reportRow.bpMaster = getMasterVal('BP');
-                        reportRow.bpNextMaster = getMasterVal('BP NEXT');
-                        reportRow.btMaster = getMasterVal('BT');
-                        reportRow.bdMaster = getMasterVal('BD');
-                        reportRow.bdNextMaster = getMasterVal('BD NEXT');
+                        let tarifIT = 0, slaFormIT = 0, slaThruIT = 0;
+                        let tarifMaster = 0, slaFormMaster = 0, slaThruMaster = 0;
 
-                        const issues: string[] = [];
-                        const details: ValidationDetail[] = [];
+                        if (itRow) {
+                            tarifIT = parseNum(findVal(itRow, 'TARIF'));
+                            slaFormIT = parseNum(findVal(itRow, 'SLA_FORM'));
+                            slaThruIT = parseNum(findVal(itRow, 'SLA_THRU'));
+                        }
+                        if (masterRow) {
+                            tarifMaster = parseNum(findVal(masterRow, 'Tarif REG') || findVal(masterRow, 'TARIF'));
+                            slaFormMaster = parseNum(findVal(masterRow, 'sla form') || findVal(masterRow, 'SLA_FORM'));
+                            slaThruMaster = parseNum(findVal(masterRow, 'sla thru') || findVal(masterRow, 'SLA_THRU'));
+                        }
 
-                        const check = (col: string, valIT: number, valMaster: number) => {
-                            const match = valIT === valMaster;
-                            if (!match) issues.push(col);
-                            details.push({ column: col, itValue: valIT, masterValue: valMaster, isMatch: match });
+                        const reportRow: FullValidationRow = {
+                            origin: (itRow ? findVal(itRow, 'ORIGIN') : findVal(masterRow, 'ORIGIN')) || '',
+                            dest: (itRow ? findVal(itRow, 'DEST') : findVal(masterRow, 'DEST')) || '',
+                            sysCode: sysCode || '',
+                            serviceMaster: masterRow ? (findVal(masterRow, 'Service REG') || findVal(masterRow, 'SERVICE') || '-') : '-',
+                            tarifMaster: masterRow ? tarifMaster : 0,
+                            slaFormMaster: masterRow ? slaFormMaster : 0,
+                            slaThruMaster: masterRow ? slaThruMaster : 0,
+                            serviceIT: itRow ? (findVal(itRow, 'SERVICE') || '-') : '-',
+                            tarifIT: itRow ? tarifIT : 0,
+                            slaFormIT: itRow ? slaFormIT : 0,
+                            slaThruIT: itRow ? slaThruIT : 0,
+                            keterangan: ''
                         };
 
-                        check('BP', reportRow.bpIT!, reportRow.bpMaster!);
-                        check('BP NEXT', reportRow.bpNextIT!, reportRow.bpNextMaster!);
-                        check('BT', reportRow.btIT!, reportRow.btMaster!);
-                        check('BD', reportRow.bdIT!, reportRow.bdMaster!);
-                        check('BD NEXT', reportRow.bdNextIT!, reportRow.bdNextMaster!);
-
-                        if (issues.length === 0) {
-                            reportRow.keterangan = 'Sesuai';
-                            matchesCount++;
+                        if (!masterRow) {
+                             reportRow.keterangan = 'Master Data Tidak Ada';
+                             blanksCount++;
+                             mismatches.push({ rowId: rowIndex, reasons: ['Master Data Tidak Ada'], details: [] });
                         } else {
-                            reportRow.keterangan = `Tidak sesuai: ${issues.join(', ')}`;
-                            mismatches.push({
-                                rowId: rowIndex,
-                                reasons: issues.map(i => `${i} tidak sesuai`),
-                                details: details
-                            });
+                             const issues: string[] = [];
+                             const details: ValidationDetail[] = [];
+                             
+                             const isSame = (val1: string | number, val2: string | number) => 
+                                 String(val1).trim().replace(/\s/g,'').toUpperCase() === String(val2).trim().replace(/\s/g,'').toUpperCase();
+
+                             if (!isSame(reportRow.serviceIT, reportRow.serviceMaster)) {
+                                 issues.push('Service');
+                                 details.push({ column: 'Service', itValue: reportRow.serviceIT, masterValue: reportRow.serviceMaster, isMatch: false });
+                             }
+                             if (reportRow.tarifIT !== reportRow.tarifMaster) {
+                                 issues.push('Tarif');
+                                 details.push({ column: 'Tarif', itValue: reportRow.tarifIT, masterValue: reportRow.tarifMaster, isMatch: false });
+                             }
+                             if (reportRow.slaFormIT !== reportRow.slaFormMaster) {
+                                 issues.push('SLA_FORM');
+                                 details.push({ column: 'sla_form', itValue: reportRow.slaFormIT, masterValue: reportRow.slaFormMaster, isMatch: false });
+                             }
+                             if (reportRow.slaThruIT !== reportRow.slaThruMaster) {
+                                 issues.push('SLA_THRU');
+                                 details.push({ column: 'sla_thru', itValue: reportRow.slaThruIT, masterValue: reportRow.slaThruMaster, isMatch: false });
+                             }
+
+                             if (issues.length === 0) {
+                                 reportRow.keterangan = 'Sesuai';
+                                 matchesCount++;
+                             } else {
+                                 reportRow.keterangan = `Tidak sesuai : ${issues.join(', ')}`;
+                                 mismatches.push({ rowId: rowIndex, reasons: issues, details: details });
+                             }
                         }
+                        fullReport.push(reportRow);
                     }
-                    fullReport.push(reportRow);
                 });
-                
-                setProgress(Math.round(((i + CHUNK_SIZE) / totalItems) * 100));
-                await new Promise(resolve => setTimeout(resolve, 0));
-            }
+            },
+            (pct) => setProgress(30 + Math.round(pct * 0.7)) // Validation read is 30-100% of progress
+        );
 
-            finishValidation(fullReport, matchesCount, blanksCount, mismatches);
+        setStatusMessage('Menyimpan hasil...');
+        const validationResult: ValidationResult = {
+            totalRows: fullReport.length,
+            matches: matchesCount,
+            blanks: blanksCount,
+            mismatches: mismatches,
+            fullReport: fullReport
+        };
+        setResult(validationResult);
 
-        } else {
-            // --- TARIF LOGIC (Existing) ---
-            const findSysCodeHeader = (row: any) => {
-                if (!row) return null;
-                return Object.keys(row).find(k => k.trim().replace(/_/g, '').toUpperCase() === 'SYSCODE');
-            };
-
-            const sysKeyIT = findSysCodeHeader(itData[0]);
-            const sysKeyMaster = findSysCodeHeader(masterData[0]);
-
-            if (!sysKeyIT || !sysKeyMaster) throw new Error("Kolom SYS_CODE tidak ditemukan.");
-
-            const getCleanSysCode = (val: any) => val ? String(val).trim().toUpperCase() : '';
-
-            const itMap = new Map<string, any>();
-            itData.forEach(row => {
-                const sysCode = getCleanSysCode(row[sysKeyIT]);
-                if (sysCode) itMap.set(sysCode, row);
-            });
-
-            const masterMap = new Map<string, any>();
-            masterData.forEach(row => {
-                const sysCode = getCleanSysCode(row[sysKeyMaster]);
-                if (sysCode) masterMap.set(sysCode, row);
-            });
-
-            const allSysCodesArray = Array.from(new Set([...itMap.keys(), ...masterMap.keys()]));
-            const totalItems = allSysCodesArray.length;
-            const CHUNK_SIZE = 1000;
-            const fullReport: FullValidationRow[] = [];
-            const mismatches: ValidationMismatch[] = [];
-            let matchesCount = 0;
-            let blanksCount = 0;
-
-            for (let i = 0; i < totalItems; i += CHUNK_SIZE) {
-                const chunk = allSysCodesArray.slice(i, i + CHUNK_SIZE);
-
-                chunk.forEach((sysCode, idx) => {
-                    const rowIndex = i + idx + 1;
-                    const itRow = itMap.get(sysCode);
-                    const masterRow = masterMap.get(sysCode);
-                    const parseNum = (val: any) => parseInt((val || '0').replace(/[^0-9]/g, '')) || 0;
-                    
-                    const findVal = (row: any, keyStart: string) => {
-                        if (!row) return '';
-                        const key = Object.keys(row).find(k => k.toUpperCase().startsWith(keyStart.toUpperCase()));
-                        return key ? row[key] : '';
-                    };
-
-                    let tarifIT = 0, slaFormIT = 0, slaThruIT = 0;
-                    let tarifMaster = 0, slaFormMaster = 0, slaThruMaster = 0;
-
-                    if (itRow) {
-                        tarifIT = parseNum(findVal(itRow, 'TARIF'));
-                        slaFormIT = parseNum(findVal(itRow, 'SLA_FORM'));
-                        slaThruIT = parseNum(findVal(itRow, 'SLA_THRU'));
-                    }
-                    if (masterRow) {
-                        tarifMaster = parseNum(findVal(masterRow, 'Tarif REG') || findVal(masterRow, 'TARIF'));
-                        slaFormMaster = parseNum(findVal(masterRow, 'sla form') || findVal(masterRow, 'SLA_FORM'));
-                        slaThruMaster = parseNum(findVal(masterRow, 'sla thru') || findVal(masterRow, 'SLA_THRU'));
-                    }
-
-                    const reportRow: FullValidationRow = {
-                        origin: (itRow ? findVal(itRow, 'ORIGIN') : findVal(masterRow, 'ORIGIN')) || '',
-                        dest: (itRow ? findVal(itRow, 'DEST') : findVal(masterRow, 'DEST')) || '',
-                        sysCode: sysCode || '',
-                        serviceMaster: masterRow ? (findVal(masterRow, 'Service REG') || findVal(masterRow, 'SERVICE') || '-') : '-',
-                        tarifMaster: masterRow ? tarifMaster : 0,
-                        slaFormMaster: masterRow ? slaFormMaster : 0,
-                        slaThruMaster: masterRow ? slaThruMaster : 0,
-                        serviceIT: itRow ? (findVal(itRow, 'SERVICE') || '-') : '-',
-                        tarifIT: itRow ? tarifIT : 0,
-                        slaFormIT: itRow ? slaFormIT : 0,
-                        slaThruIT: itRow ? slaThruIT : 0,
-                        keterangan: ''
-                    };
-
-                    if (!masterRow) {
-                        reportRow.keterangan = 'Master Data Tidak Ada';
-                        blanksCount++;
-                        mismatches.push({ rowId: rowIndex, reasons: ['Master Data Tidak Ada'], details: [] });
-                    } else if (!itRow) {
-                        reportRow.keterangan = 'Data IT Tidak Ada';
-                        blanksCount++;
-                        mismatches.push({ rowId: rowIndex, reasons: ['Data IT Tidak Ada'], details: [] });
-                    } else {
-                        const issues: string[] = [];
-                        const details: ValidationDetail[] = [];
-                        
-                        const isSame = (val1: string | number, val2: string | number) => 
-                            String(val1).trim().replace(/\s/g,'').toUpperCase() === String(val2).trim().replace(/\s/g,'').toUpperCase();
-
-                        if (!isSame(reportRow.serviceIT, reportRow.serviceMaster)) {
-                            issues.push('Service');
-                            details.push({ column: 'Service', itValue: reportRow.serviceIT, masterValue: reportRow.serviceMaster, isMatch: false });
-                        }
-                        if (reportRow.tarifIT !== reportRow.tarifMaster) {
-                            issues.push('Tarif');
-                            details.push({ column: 'Tarif', itValue: reportRow.tarifIT, masterValue: reportRow.tarifMaster, isMatch: false });
-                        }
-                        if (reportRow.slaFormIT !== reportRow.slaFormMaster) {
-                            issues.push('SLA_FORM');
-                            details.push({ column: 'sla_form', itValue: reportRow.slaFormIT, masterValue: reportRow.slaFormMaster, isMatch: false });
-                        }
-                        if (reportRow.slaThruIT !== reportRow.slaThruMaster) {
-                            issues.push('SLA_THRU');
-                            details.push({ column: 'sla_thru', itValue: reportRow.slaThruIT, masterValue: reportRow.slaThruMaster, isMatch: false });
-                        }
-
-                        if (issues.length === 0) {
-                            reportRow.keterangan = 'Sesuai';
-                            matchesCount++;
-                        } else {
-                            reportRow.keterangan = `Tidak sesuai : ${issues.join(', ')}`;
-                            mismatches.push({ rowId: rowIndex, reasons: issues, details: details });
-                        }
-                    }
-                    fullReport.push(reportRow);
-                });
-                
-                setProgress(Math.round(((i + CHUNK_SIZE) / totalItems) * 100));
-                await new Promise(resolve => setTimeout(resolve, 0));
-            }
-            finishValidation(fullReport, matchesCount, blanksCount, mismatches);
-        }
+        // Store history
+        const historyItem: ValidationHistoryItem = {
+            id: Date.now().toString(),
+            timestamp: new Date().toLocaleString('id-ID'),
+            fileNameIT: fileIT.name,
+            fileNameMaster: fileMaster.name,
+            result: validationResult,
+            category: category
+        };
+        setHistory(prev => [historyItem, ...prev]);
 
     } catch (error: any) {
         console.error("Validation Error:", error);
@@ -455,44 +526,31 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
     } finally {
         setIsValidating(false);
         setProgress(0);
+        setStatusMessage('');
     }
   };
 
-  const finishValidation = (report: FullValidationRow[], matches: number, blanks: number, mismatches: ValidationMismatch[]) => {
-      const validationResult: ValidationResult = {
-          totalRows: report.length,
-          matches,
-          blanks,
-          mismatches,
-          fullReport: report
-      };
-      setResult(validationResult);
-
-      const historyItem: ValidationHistoryItem = {
-          id: Date.now().toString(),
-          timestamp: new Date().toLocaleString('id-ID'),
-          fileNameIT: fileIT!.name,
-          fileNameMaster: fileMaster!.name,
-          result: validationResult,
-          category: category
-      };
-      setHistory(prev => [historyItem, ...prev]);
-  };
-
-  const getDisplayedRows = () => {
+  const getDisplayedRows = useMemo(() => {
       if (!result) return [];
-      if (reportFilter === 'ALL') return result.fullReport;
-      if (reportFilter === 'MATCH') return result.fullReport.filter(r => r.keterangan === 'Sesuai');
-      if (reportFilter === 'BLANK') return result.fullReport.filter(r => r.keterangan.includes('Tidak Ada'));
-      if (reportFilter === 'MISMATCH') return result.fullReport.filter(r => !r.keterangan.includes('Sesuai') && !r.keterangan.includes('Tidak Ada'));
-      return [];
-  };
+      let rows = [];
+      if (reportFilter === 'ALL') rows = result.fullReport;
+      else if (reportFilter === 'MATCH') rows = result.fullReport.filter(r => r.keterangan === 'Sesuai');
+      else if (reportFilter === 'BLANK') rows = result.fullReport.filter(r => r.keterangan.includes('Tidak Ada'));
+      else if (reportFilter === 'MISMATCH') rows = result.fullReport.filter(r => !r.keterangan.includes('Sesuai') && !r.keterangan.includes('Tidak Ada'));
+      else rows = [];
+      
+      return rows;
+  }, [result, reportFilter]);
 
-  const displayedRows = getDisplayedRows();
-  const displayedHistory = history.filter(item => {
-    if (!item.category && category === 'TARIF') return true;
-    return item.category === category;
-  });
+  const totalPages = Math.ceil(getDisplayedRows.length / ROWS_PER_PAGE);
+  const paginatedRows = useMemo(() => {
+      const start = (currentPage - 1) * ROWS_PER_PAGE;
+      return getDisplayedRows.slice(start, start + ROWS_PER_PAGE);
+  }, [getDisplayedRows, currentPage]);
+
+  const handlePageChange = (newPage: number) => {
+      if(newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
+  };
 
   const clearHistory = () => {
       if(window.confirm('Hapus semua riwayat validasi?')) setHistory([]);
@@ -506,57 +564,61 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
 
   const handleOpenReport = (filter: 'ALL' | 'MATCH' | 'MISMATCH' | 'BLANK') => {
     setReportFilter(filter);
+    setCurrentPage(1); 
     setShowFullReport(true);
   };
 
+  const displayedHistory = history.filter(item => {
+    if (!item.category && category === 'TARIF') return true; 
+    return item.category === category;
+  });
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-10">
+    <div className="max-w-6xl mx-auto space-y-8 pb-10">
       <div className="text-center space-y-2">
         <h2 className="text-2xl font-bold text-slate-800">Validasi {category === 'TARIF' ? 'Tarif' : 'Biaya'} Otomatis</h2>
         <p className="text-slate-500 max-w-2xl mx-auto">
             {category === 'TARIF' ? (
-                <>
-                Upload Data IT dan Master Data Tarif. Validasi: Service, Tarif, SLA Form, SLA Thru.<br/>
-                <span className="text-xs italic">Lookup: SYS_CODE</span>
-                </>
+                <>Upload <strong>Data IT</strong> dan <strong>Master Data Tarif</strong>. Sistem akan memvalidasi Service, Tarif, SLA Form, dan SLA Thru menggunakan <strong>SYS_CODE</strong>.</>
             ) : (
-                <>
-                Upload Data IT dan Master Data Costing. Validasi: BP, BP Next, BT, BD, BD Next.<br/>
-                <span className="text-xs italic">Lookup: Destinasi & Service (Map ke Master Columns)</span>
-                </>
+                <>Upload <strong>Data IT</strong> dan <strong>Master Data Biaya</strong>. Sistem akan memvalidasi komponen biaya (BP, BT, BD) berdasarkan <strong>DESTINASI</strong> dan <strong>SERVICE Mapping</strong>.</>
             )}
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center text-center hover:border-blue-400 transition group relative">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4">
+        {/* Upload Card IT */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center text-center hover:border-blue-500 transition group relative">
+            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition">
                 <FileUp size={24} />
             </div>
             <h3 className="font-semibold text-slate-700 mb-1">Template Data IT</h3>
             <p className="text-xs text-slate-400 mb-3">Upload file CSV</p>
+            
             <input type="file" onChange={(e) => handleFileChange(e, 'IT')} className="hidden" id="file-it" accept=".csv" />
-            <label htmlFor="file-it" className="cursor-pointer px-4 py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 w-full truncate mb-3">
+            <label htmlFor="file-it" className="cursor-pointer px-4 py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:border-blue-500 transition w-full truncate mb-3">
                 {fileIT ? fileIT.name : (result ? 'Tidak ada file baru' : 'Click to Upload')}
             </label>
-            <button onClick={() => downloadTemplate('IT')} className="text-xs text-blue-600 border border-blue-100 px-3 py-1 rounded hover:bg-blue-50">
-                <Download size={12}/> Download Template
+            <button onClick={() => downloadTemplate('IT')} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium border border-blue-100 px-3 py-1 rounded hover:bg-blue-50 transition">
+                <Download size={12}/> Download Template IT
             </button>
             {fileIT && <span className="absolute top-4 right-4 text-green-500"><CheckCircle2 size={20}/></span>}
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center text-center hover:border-purple-400 transition group relative">
-            <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mb-4">
+        {/* Upload Card Master */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center text-center hover:border-purple-500 transition group relative">
+            <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition">
                 <FileUp size={24} />
             </div>
             <h3 className="font-semibold text-slate-700 mb-1">Template Master Data</h3>
             <p className="text-xs text-slate-400 mb-3">Upload file CSV</p>
+            
             <input type="file" onChange={(e) => handleFileChange(e, 'MASTER')} className="hidden" id="file-master" accept=".csv" />
-            <label htmlFor="file-master" className="cursor-pointer px-4 py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 w-full truncate mb-3">
+            <label htmlFor="file-master" className="cursor-pointer px-4 py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50 hover:border-purple-500 transition w-full truncate mb-3">
                 {fileMaster ? fileMaster.name : (result ? 'Tidak ada file baru' : 'Click to Upload')}
             </label>
-            <button onClick={() => downloadTemplate('MASTER')} className="text-xs text-purple-600 border border-purple-100 px-3 py-1 rounded hover:bg-purple-50">
-                <Download size={12}/> Download Template
+            <button onClick={() => downloadTemplate('MASTER')} className="text-xs text-purple-600 hover:text-purple-800 flex items-center gap-1 font-medium border border-purple-100 px-3 py-1 rounded hover:bg-purple-50 transition">
+                <Download size={12}/> Download Template Master
             </button>
             {fileMaster && <span className="absolute top-4 right-4 text-green-500"><CheckCircle2 size={20}/></span>}
         </div>
@@ -566,20 +628,24 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
         {isValidating ? (
              <div className="w-full max-w-md bg-white p-4 rounded-xl shadow-sm border border-slate-200">
                 <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-semibold text-slate-700">Validating...</span>
+                    <span className="text-sm font-semibold text-slate-700">Processing...</span>
                     <span className="text-sm font-bold text-blue-600">{progress}%</span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
                     <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-200 ease-out" style={{ width: `${progress}%` }}></div>
                 </div>
+                <p className="text-center text-xs text-slate-400 mt-2">{statusMessage}</p>
              </div>
         ) : (
             <button 
                 disabled={!fileIT || !fileMaster || isValidating}
                 onClick={processValidation}
-                className={`px-8 py-3 rounded-full font-semibold shadow-lg transition flex items-center gap-2 ${(!fileIT || !fileMaster) ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'}`}
+                className={`px-8 py-3 rounded-full font-semibold shadow-lg transition flex items-center gap-2
+                    ${(!fileIT || !fileMaster) ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-105'}
+                `}
             >
-                <Upload size={20} /> Mulai Validasi {category === 'TARIF' ? 'Tarif' : 'Biaya'}
+                <Upload size={20} />
+                Mulai Validasi {category === 'TARIF' ? 'Tarif' : 'Biaya'}
             </button>
         )}
       </div>
@@ -589,8 +655,8 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                   <h3 className="font-bold text-lg text-slate-800">Hasil Validasi {category}</h3>
                   <div className="flex gap-2">
-                    <button onClick={() => handleOpenReport('ALL')} className="text-slate-500 text-sm flex items-center gap-1 hover:text-blue-600 border border-slate-200 px-3 py-1 rounded">
-                        <TableIcon size={16} /> Lihat Detail
+                    <button onClick={() => handleOpenReport('ALL')} className="text-slate-500 text-sm flex items-center gap-1 hover:text-blue-600 border border-slate-200 px-3 py-1 rounded hover:bg-slate-50 transition">
+                        <TableIcon size={16} /> Lihat Detail Table
                     </button>
                     <button onClick={() => downloadFullReport()} className="text-blue-600 text-sm flex items-center gap-1 hover:underline font-medium">
                         <Download size={16} /> Download Report
@@ -601,70 +667,69 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
               <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div onClick={() => handleOpenReport('ALL')} className="bg-blue-50 p-4 rounded-lg border border-blue-100 hover:bg-blue-100 transition cursor-pointer">
                     <p className="text-sm text-blue-600 mb-1">Total Data</p>
-                    <p className="text-3xl font-bold text-blue-800">{result.totalRows}</p>
+                    <p className="text-3xl font-bold text-blue-800">{result.totalRows.toLocaleString()}</p>
                 </div>
                 <div onClick={() => handleOpenReport('MATCH')} className="bg-green-50 p-4 rounded-lg border border-green-100 hover:bg-green-100 transition cursor-pointer">
                     <p className="text-sm text-green-600 mb-1">Data Sesuai</p>
-                    <p className="text-3xl font-bold text-green-800">{result.matches}</p>
+                    <p className="text-3xl font-bold text-green-800">{result.matches.toLocaleString()}</p>
                 </div>
                 <div onClick={() => handleOpenReport('MISMATCH')} className="bg-red-50 p-4 rounded-lg border border-red-100 hover:bg-red-100 transition cursor-pointer">
                     <p className="text-sm text-red-600 mb-1">Tidak Sesuai</p>
-                    <p className="text-3xl font-bold text-red-800">{result.mismatches.length - result.blanks}</p>
+                    <p className="text-3xl font-bold text-red-800">{(result.mismatches.length - result.blanks).toLocaleString()}</p>
                 </div>
                 <div onClick={() => handleOpenReport('BLANK')} className="bg-slate-100 p-4 rounded-lg border border-slate-200 hover:bg-slate-200 transition cursor-pointer">
                     <p className="text-sm text-slate-600 mb-1">Data Blank</p>
-                    <p className="text-3xl font-bold text-slate-800">{result.blanks}</p>
+                    <p className="text-3xl font-bold text-slate-800">{result.blanks.toLocaleString()}</p>
                 </div>
               </div>
-
-              {result.mismatches.length > 0 && (
-                <div className="border-t border-slate-200">
-                    <div className="bg-slate-50 px-6 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Quick List Ketidaksesuaian</div>
-                    <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
-                        {result.mismatches.map((item, idx) => (
-                            <div key={idx} onClick={(e) => { e.stopPropagation(); setSelectedMismatch(item); }} className="px-6 py-3 flex items-center justify-between hover:bg-blue-50 cursor-pointer group transition">
-                                <div className="flex items-start gap-3">
-                                    <AlertTriangle size={18} className="text-red-500 mt-0.5 flex-shrink-0" />
-                                    <div>
-                                        <p className="text-sm font-medium text-slate-800">Row ID: {item.rowId}</p>
-                                        <div className="flex flex-wrap gap-2 mt-1">
-                                            {item.reasons.map((reason, rIdx) => (
-                                                <span key={rIdx} className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">{reason}</span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                                <Eye size={16} className="text-slate-300 group-hover:text-blue-500" />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-              )}
           </div>
       )}
 
-      {/* History Table */}
+      {/* History Section */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><History size={20} className="text-slate-500" /> Riwayat Validasi {category}</h3>
-            {displayedHistory.length > 0 && <button onClick={clearHistory} className="text-red-500 text-sm flex items-center gap-1"><Trash2 size={16} /> Hapus</button>}
+            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                <History size={20} className="text-slate-500" />
+                Riwayat Validasi {category}
+            </h3>
+            {displayedHistory.length > 0 && (
+                <button onClick={clearHistory} className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1">
+                    <Trash2 size={16} /> Hapus Riwayat
+                </button>
+            )}
         </div>
         <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
-                    <tr><th className="px-6 py-3">Waktu</th><th className="px-6 py-3">File IT</th><th className="px-6 py-3">File Master</th><th className="px-6 py-3">Hasil</th><th className="px-6 py-3">Aksi</th></tr>
+                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                    <tr>
+                        <th className="px-6 py-3">Waktu</th>
+                        <th className="px-6 py-3">File IT</th>
+                        <th className="px-6 py-3">File Master</th>
+                        <th className="px-6 py-3">Hasil</th>
+                        <th className="px-6 py-3">Aksi</th>
+                    </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                     {displayedHistory.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-50">
-                            <td className="px-6 py-3">{item.timestamp}</td>
-                            <td className="px-6 py-3 font-medium">{item.fileNameIT}</td>
-                            <td className="px-6 py-3 font-medium">{item.fileNameMaster}</td>
-                            <td className="px-6 py-3">{item.result.matches} Sesuai / {item.result.mismatches.length} Mismatch</td>
-                            <td className="px-6 py-3"><button onClick={() => restoreFromHistory(item)} className="text-blue-600 flex items-center gap-1 text-xs border border-blue-100 px-2 py-1 rounded"><RotateCcw size={12} /> Lihat</button></td>
+                        <tr key={item.id} className="hover:bg-slate-50 transition">
+                            <td className="px-6 py-3 text-slate-500">{item.timestamp}</td>
+                            <td className="px-6 py-3 text-slate-800 font-medium">{item.fileNameIT}</td>
+                            <td className="px-6 py-3 text-slate-800 font-medium">{item.fileNameMaster}</td>
+                            <td className="px-6 py-3">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">
+                                    {item.result.matches} Sesuai / {item.result.blanks} Blank
+                                </span>
+                            </td>
+                            <td className="px-6 py-3">
+                                <button onClick={() => restoreFromHistory(item)} className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-xs font-medium border border-blue-100 px-2 py-1 rounded hover:bg-blue-50">
+                                    <RotateCcw size={12} /> Lihat Kembali
+                                </button>
+                            </td>
                         </tr>
                     ))}
-                    {displayedHistory.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-400">Belum ada riwayat.</td></tr>}
+                    {displayedHistory.length === 0 && (
+                        <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-400">Belum ada riwayat.</td></tr>
+                    )}
                 </tbody>
             </table>
         </div>
@@ -675,128 +740,131 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg shadow-xl w-full h-full max-w-[95vw] max-h-[90vh] flex flex-col animate-in zoom-in-95">
                 <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 flex-shrink-0">
-                    <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><TableIcon size={20} className="text-blue-600" /> Laporan Validasi {category}</h3>
+                    <div>
+                        <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                           <TableIcon size={20} className="text-blue-600" />
+                           Laporan Validasi {category}: {reportFilter}
+                        </h3>
+                        <p className="text-xs text-slate-500">Menampilkan {getDisplayedRows.length.toLocaleString()} data</p>
+                    </div>
                     <div className="flex items-center gap-3">
-                        <button onClick={() => downloadFullReport(displayedRows)} className="flex items-center gap-2 bg-green-600 text-white px-3 py-1.5 rounded text-sm"><Download size={16} /> Download CSV</button>
-                        <button onClick={() => setShowFullReport(false)} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
+                        <button onClick={() => downloadFullReport(getDisplayedRows)} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm transition">
+                            <Download size={16} /> Download CSV
+                        </button>
+                        <button onClick={() => setShowFullReport(false)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1 rounded transition">
+                            <X size={24} />
+                        </button>
                     </div>
                 </div>
                 
-                <div className="flex-1 overflow-auto">
-                    <table className="w-full text-xs text-left border-collapse">
+                <div className="flex-1 overflow-auto bg-slate-50">
+                    <table className="w-full text-xs text-left border-collapse bg-white">
                         <thead className="sticky top-0 z-10 shadow-sm">
                             <tr className="uppercase text-slate-800 font-bold border-b border-slate-300">
+                                <th className="bg-yellow-300 px-2 py-3 border-r border-slate-300 min-w-[80px]">ORIGIN</th>
+                                <th className="bg-yellow-300 px-2 py-3 border-r border-slate-300 min-w-[80px]">DEST</th>
+                                <th className="bg-yellow-300 px-2 py-3 border-r border-slate-300 min-w-[150px]">
+                                    {category === 'TARIF' ? 'SYS_CODE' : 'SERVICE IT'}
+                                </th>
+                                {category === 'BIAYA' && (
+                                    <th className="bg-yellow-300 px-2 py-3 border-r border-slate-300 min-w-[100px]">ACUAN SERVICE</th>
+                                )}
+                                
                                 {category === 'TARIF' ? (
                                     <>
-                                    <th className="bg-yellow-300 px-2 py-3 border-r min-w-[100px]">ORIGIN</th>
-                                    <th className="bg-yellow-300 px-2 py-3 border-r min-w-[100px]">DEST</th>
-                                    <th className="bg-yellow-300 px-2 py-3 border-r min-w-[150px]">SYS_CODE</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[80px]">Service REG</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[80px]">Tarif REG</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[80px]">sla form</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[80px]">sla thru</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[80px]">SERVICE</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[80px]">TARIF</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[80px]">SLA_FORM</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[80px]">SLA_THRU</th>
+                                        {/* Master Data */}
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">Service REG</th>
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">Tarif REG</th>
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">sla form</th>
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">sla thru</th>
+                                        {/* IT Data */}
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">SERVICE</th>
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">TARIF</th>
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">SLA_FORM</th>
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">SLA_THRU</th>
                                     </>
                                 ) : (
                                     <>
-                                    <th className="bg-yellow-300 px-2 py-3 border-r min-w-[100px]">ORIGIN</th>
-                                    <th className="bg-yellow-300 px-2 py-3 border-r min-w-[100px]">DEST</th>
-                                    <th className="bg-yellow-300 px-2 py-3 border-r min-w-[80px]">SERVICE</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[60px]">BP Master</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[60px]">BP Next M</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[60px]">BT Master</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[60px]">BD Master</th>
-                                    <th className="bg-slate-200 px-2 py-3 border-r min-w-[60px]">BD Next M</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[60px]">BP IT</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[60px]">BP Next IT</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[60px]">BT IT</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[60px]">BD IT</th>
-                                    <th className="bg-white px-2 py-3 border-r min-w-[60px]">BD Next IT</th>
+                                        {/* BIAYA COLS */}
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">BP M</th>
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">BP N M</th>
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">BT M</th>
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">BD M</th>
+                                        <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">BD N M</th>
+
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">BP IT</th>
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">BP N IT</th>
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">BT IT</th>
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">BD IT</th>
+                                        <th className="bg-white px-2 py-3 border-r border-slate-200">BD N IT</th>
                                     </>
                                 )}
                                 <th className="bg-white px-2 py-3 min-w-[200px]">Keterangan</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {displayedRows.length > 0 ? (
-                                displayedRows.map((row, idx) => (
+                            {paginatedRows.length > 0 ? (
+                                paginatedRows.map((row, idx) => (
                                     <tr key={idx} className="hover:bg-blue-50 transition">
-                                        <td className="px-2 py-2 border-r">{row.origin}</td>
-                                        <td className="px-2 py-2 border-r">{row.dest}</td>
-                                        <td className="px-2 py-2 border-r">{row.sysCode}</td>
-                                        
+                                        <td className="px-2 py-2 border-r border-slate-100">{row.origin}</td>
+                                        <td className="px-2 py-2 border-r border-slate-100">{row.dest}</td>
+                                        <td className="px-2 py-2 border-r border-slate-100">{category === 'TARIF' ? row.sysCode : row.serviceIT}</td>
+                                        {category === 'BIAYA' && (
+                                            <td className="px-2 py-2 border-r border-slate-100 text-blue-600 font-semibold">{row.serviceMaster}</td>
+                                        )}
+
                                         {category === 'TARIF' ? (
                                             <>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.serviceMaster}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.tarifMaster.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.slaFormMaster}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.slaThruMaster}</td>
-                                            <td className="px-2 py-2 border-r">{row.serviceIT}</td>
-                                            <td className="px-2 py-2 border-r">{row.tarifIT.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r">{row.slaFormIT}</td>
-                                            <td className="px-2 py-2 border-r">{row.slaThruIT}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50">{row.serviceMaster}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-right">{safeRender(row.tarifMaster)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-center">{row.slaFormMaster}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-center">{row.slaThruMaster}</td>
+
+                                                <td className="px-2 py-2 border-r border-slate-100">{row.serviceIT}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 text-right">{safeRender(row.tarifIT)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 text-center">{row.slaFormIT}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 text-center">{row.slaThruIT}</td>
                                             </>
                                         ) : (
                                             <>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.bpMaster?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.bpNextMaster?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.btMaster?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.bdMaster?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r bg-slate-50">{row.bdNextMaster?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r">{row.bpIT?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r">{row.bpNextIT?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r">{row.btIT?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r">{row.bdIT?.toLocaleString()}</td>
-                                            <td className="px-2 py-2 border-r">{row.bdNextIT?.toLocaleString()}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-right">{safeRender(row.bpMaster)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-right">{safeRender(row.bpNextMaster)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-right">{safeRender(row.btMaster)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-right">{safeRender(row.bdMaster)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 bg-slate-50 text-right">{safeRender(row.bdNextMaster)}</td>
+
+                                                <td className="px-2 py-2 border-r border-slate-100 text-right">{safeRender(row.bpIT)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 text-right">{safeRender(row.bpNextIT)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 text-right">{safeRender(row.btIT)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 text-right">{safeRender(row.bdIT)}</td>
+                                                <td className="px-2 py-2 border-r border-slate-100 text-right">{safeRender(row.bdNextIT)}</td>
                                             </>
                                         )}
-                                        
-                                        <td className={`px-2 py-2 font-medium ${row.keterangan === 'Sesuai' ? 'text-slate-800' : 'text-red-600'}`}>
+
+                                        <td className={`px-2 py-2 font-medium ${row.keterangan === 'Sesuai' ? 'text-green-600' : 'text-red-600'}`}>
                                             {row.keterangan}
                                         </td>
                                     </tr>
                                 ))
                             ) : (
-                                <tr><td colSpan={13} className="px-6 py-12 text-center text-slate-400">Tidak ada data untuk filter ini.</td></tr>
+                                <tr><td colSpan={15} className="px-6 py-12 text-center text-slate-400">Tidak ada data.</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
-            </div>
-        </div>
-      )}
 
-      {selectedMismatch && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95">
-                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <div>
-                        <h3 className="font-bold text-lg text-slate-800">Detail Ketidaksesuaian</h3>
-                        <p className="text-sm text-slate-500">Row ID: {selectedMismatch.rowId}</p>
+                {/* PAGINATION */}
+                <div className="p-4 border-t border-slate-200 bg-white flex justify-between items-center flex-shrink-0">
+                    <p className="text-sm text-slate-500">Page {currentPage} of {totalPages}</p>
+                    <div className="flex gap-2">
+                        <button disabled={currentPage === 1} onClick={() => handlePageChange(currentPage - 1)} className="p-2 border rounded hover:bg-slate-50 disabled:opacity-50">
+                            <ChevronLeft size={16} />
+                        </button>
+                        <button disabled={currentPage === totalPages} onClick={() => handlePageChange(currentPage + 1)} className="p-2 border rounded hover:bg-slate-50 disabled:opacity-50">
+                            <ChevronRight size={16} />
+                        </button>
                     </div>
-                    <button onClick={() => setSelectedMismatch(null)} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
                 </div>
-                <div className="p-6">
-                     <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
-                            <tr><th className="px-4 py-3">Column</th><th className="px-4 py-3">Data IT (Uploaded)</th><th className="px-4 py-3">Master Data</th><th className="px-4 py-3 text-center">Status</th></tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {selectedMismatch.details.map((detail, idx) => (
-                                <tr key={idx} className={!detail.isMatch ? "bg-red-50/50" : ""}>
-                                    <td className="px-4 py-3 font-medium text-slate-700">{detail.column}</td>
-                                    <td className={`px-4 py-3 ${!detail.isMatch ? 'text-black font-semibold' : 'text-slate-600'}`}>{detail.itValue}</td>
-                                    <td className={`px-4 py-3 ${!detail.isMatch ? 'text-green-700 font-semibold' : 'text-slate-600'}`}>{detail.masterValue}</td>
-                                    <td className="px-4 py-3 text-center">{detail.isMatch ? <CheckCircle2 size={12} className="text-green-600"/> : <X size={12} className="text-red-600"/>}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-                <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end"><button onClick={() => setSelectedMismatch(null)} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded transition text-sm font-medium">Tutup</button></div>
             </div>
         </div>
       )}
