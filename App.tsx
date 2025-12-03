@@ -44,6 +44,7 @@ function App() {
         }
 
         if (data.users && Array.isArray(data.users)) {
+            // Merge authorized users (code) with passwords from cloud
             const mergedUsers = AUTHORIZED_USERS.map(defaultUser => {
                 const cloudUser = data.users.find((u: User) => u.email === defaultUser.email);
                 return {
@@ -64,16 +65,18 @@ function App() {
     }
   }, [isSaving]);
 
+  // Initial fetch and polling
   useEffect(() => {
     fetchData(); 
     const intervalId = setInterval(() => {
         fetchData();
-    }, 5000); 
+    }, 5000); // Sync every 5 seconds
     return () => clearInterval(intervalId);
   }, [fetchData]);
 
   const saveToCloud = async (newJobs: Job[], newUsers: User[], newLogs: ValidationLog[]) => {
     setIsSaving(true);
+    // Optimistic update
     setJobs(newJobs);
     setUsers(newUsers);
     setValidationLogs(newLogs);
@@ -100,9 +103,11 @@ function App() {
     }
   };
 
+  // Persist current logged in user session
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('jne_current_user', JSON.stringify(currentUser));
+      // Update local current user instance if cloud data changes (e.g. password change)
       const freshUser = users.find(u => u.email === currentUser.email);
       if (freshUser && freshUser.password !== currentUser.password) {
         setCurrentUser(freshUser);
@@ -123,7 +128,12 @@ function App() {
       };
   };
 
+  const handleValidationLog = (log: ValidationLog) => {
+      saveToCloud(jobs, users, [log, ...validationLogs]);
+  };
+
   const handleLogin = (user: User) => {
+    // Get the freshest user data
     const freshUserData = users.find(u => u.email === user.email) || user;
     setCurrentUser(freshUserData);
   };
@@ -136,6 +146,7 @@ function App() {
         const updatedUser = { ...targetUser, password: defaultPassword };
         const updatedUserList = users.map(u => u.email === targetUser.email ? updatedUser : u);
         
+        // Log reset
         const newLog: ValidationLog = {
             id: crypto.randomUUID(),
             timestamp: new Date().toISOString(),
@@ -145,6 +156,7 @@ function App() {
         };
         const updatedLogs = [newLog, ...validationLogs];
 
+        // Save directly to cloud
         await saveToCloud(jobs, updatedUserList, updatedLogs);
         return true;
     }
@@ -185,6 +197,7 @@ function App() {
     const oldJob = jobs.find(j => j.id === id);
     const newJobs = jobs.map(j => j.id === id ? { ...j, ...updates } : j);
     
+    // Create detailed log
     let desc = `Update data pekerjaan`;
     if (oldJob) {
         if (updates.status && updates.status !== oldJob.status) {
@@ -241,9 +254,11 @@ function App() {
 
   const renderContent = () => {
       if (activeCategory === 'Validasi') {
+          // Check for subcategory to decide validation type
           if (activeSubCategory === 'Biaya Validasi') {
              return <TarifValidator category="BIAYA" />;
           }
+          // Default to Tarif if not Biaya or specifically Tarif
           return <TarifValidator category="TARIF" />;
       }
       
