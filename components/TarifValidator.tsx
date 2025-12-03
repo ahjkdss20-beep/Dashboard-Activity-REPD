@@ -242,6 +242,22 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
       }
   };
 
+  // Standard non-chunked reader for Master Data (Assuming it fits in memory for Map)
+  // For production with millions of Master rows, IndexedDB would be needed.
+  // Here we optimize by just reading it once efficiently.
+  const readMasterFile = (file: File): Promise<any[]> => {
+      return new Promise((resolve, reject) => {
+        // Use chunked processor just to be safe, but collect all
+        const allData: any[] = [];
+        processFileChunked(
+            file, 
+            () => {}, 
+            (rows) => { allData.push(...rows); }, 
+            () => {}
+        ).then(() => resolve(allData)).catch(reject);
+      });
+  };
+
   const processValidation = async () => {
     if (!fileIT || !fileMaster) return;
     
@@ -271,7 +287,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                     // Tarif Key: SYS_CODE
                     const keys = Object.keys(rows[0] || {});
                     const sysKey = keys.find(k => k.trim().replace(/_/g, '').toUpperCase() === 'SYSCODE');
-                    if (!sysKey) return; // Skip if no key found
+                    if (!sysKey) return; // Skip if no key found (handled later)
                     rows.forEach(row => {
                         const k = String(row[sysKey] || '').trim().toUpperCase();
                         if (k) masterMap.set(k, row);
@@ -303,13 +319,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
             return v;
         };
 
-        const parseNum = (val: any) => {
-            // Remove thousand separators (dots or commas) depending on locale guess or just remove non-digits
-            // Assuming standard format "1.000" or "1000". If "1,000" is used as decimal, this needs adjustment.
-            // For this app context (ID), dot is thousand separator usually.
-            const clean = String(val || '0').replace(/[^0-9]/g, ''); 
-            return parseInt(clean) || 0;
-        };
+        const parseNum = (val: any) => parseInt((val || '0').replace(/[^0-9]/g, '')) || 0;
 
         await processFileChunked(
             fileIT,
