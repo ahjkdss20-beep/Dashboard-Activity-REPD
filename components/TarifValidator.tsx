@@ -31,12 +31,25 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
             setHistory(JSON.parse(savedHistory));
         } catch (e) {
             console.error("Failed to parse history", e);
+            localStorage.removeItem('validationHistory');
         }
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('validationHistory', JSON.stringify(history));
+    try {
+        localStorage.setItem('validationHistory', JSON.stringify(history));
+    } catch (e) {
+        console.error("Storage Full or Error:", e);
+        if (history.length > 0) {
+            const trimmedHistory = history.slice(0, 5);
+            try {
+                localStorage.setItem('validationHistory', JSON.stringify(trimmedHistory));
+            } catch (err) {
+                 console.warn("Cannot save history even after trimming.");
+            }
+        }
+    }
   }, [history]);
 
   useEffect(() => {
@@ -69,7 +82,6 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
             filename = `Template_Master_Data_TARIF.csv`;
         }
     } else {
-        // BIAYA TEMPLATES
         if (type === 'IT') {
             content = 'ORIGIN,DESTINASI,SERVICE,BT,BD,BD NEXT,BP,BP NEXT\nAMI20100,BDJ10502,REG19,1500,3200,0,0,0';
             filename = `Template_Data_IT_BIAYA.csv`;
@@ -91,13 +103,15 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
   };
 
   const downloadFullReport = (rowsToDownload?: FullValidationRow[]) => {
-    if (!result) return;
+    if (!result || !result.fullReport) {
+        alert("Data report tidak tersedia untuk didownload (Mungkin ini data history lama).");
+        return;
+    }
     
     const data = rowsToDownload || result.fullReport;
     let header = '';
     let rows: string[] = [];
 
-    // Helper to escape CSV fields
     const esc = (val: any) => {
         const str = String(val === undefined || val === null ? '' : val);
         if (str.includes(',') || str.includes('"') || str.includes('\n')) {
@@ -120,7 +134,6 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
             esc(row.keterangan)
         ].join(','));
     } else {
-        // BIAYA HEADER
         header = [
             'ORIGIN', 'DESTINASI', 'SERVICE', 'ACUAN SERVICE',
             'BP Master', 'BP Next Master', 'BT Master', 'BD Master', 'BD Next Master', 
@@ -147,8 +160,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
     window.URL.revokeObjectURL(url);
   };
 
-  // --- CHUNKED CSV PROCESSOR (OPTIMIZED FOR MILLIONS OF ROWS) ---
-  const CHUNK_SIZE = 1024 * 1024 * 5; // Process in 5MB Chunks
+  const CHUNK_SIZE = 1024 * 1024 * 5; 
 
   const parseLine = (line: string, delimiter: string) => {
     const result: string[] = [];
@@ -187,7 +199,6 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
               reader.readAsText(slice);
           });
 
-          // Handle BOM (Byte Order Mark) for Excel CSVs
           const cleanText = (offset === 0) ? text.replace(/^\uFEFF/, '') : text;
           
           const rawLines = (leftover + cleanText).split(/\r\n|\n/);
@@ -205,7 +216,6 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
 
               if (!headers) {
                   const firstLine = validLines[0];
-                  // Detect delimiter
                   const commaCount = (firstLine.match(/,/g) || []).length;
                   const semiCount = (firstLine.match(/;/g) || []).length;
                   delimiter = semiCount > commaCount ? ';' : ',';
@@ -219,7 +229,6 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
               for (let i = startIndex; i < validLines.length; i++) {
                   const values = parseLine(validLines[i], delimiter);
                   const row: any = {};
-                  // Fast Row Construction
                   if (values.length === 1 && values[0] === '') continue;
 
                   headers.forEach((h, idx) => {
@@ -227,19 +236,15 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                   });
                   rows.push(row);
               }
-              // Send batch of rows
               onRows(rows);
           }
 
           offset += CHUNK_SIZE;
           onProgress(Math.min(Math.round((offset / fileSize) * 100), 100));
-          
-          // Yield to UI thread to allow Progress Bar update
           await new Promise(resolve => setTimeout(resolve, 0));
       }
   };
 
-  // Safe Render: Prevents crash if value is null/undefined
   const safeRender = (val: number | undefined | null) => {
       if (val === undefined || val === null || isNaN(val)) return '0';
       return val.toLocaleString('id-ID');
@@ -253,23 +258,20 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
     setStatusMessage('Mempersiapkan data...');
     setResult(null);
 
-    // Artificial delay to let UI render the start state
     await new Promise(resolve => setTimeout(resolve, 100));
 
     try {
-        // --- 1. PROCESS MASTER DATA ---
         setStatusMessage('Membaca Master Data (Acuan)...');
         const masterMap = new Map<string, any>();
         
         await processFileChunked(
             fileMaster,
-            () => {}, // Header callback ignored for master (handled inside row processing via keys)
+            () => {}, 
             (rows) => {
                 if (category === 'BIAYA') {
                     const keys = Object.keys(rows[0] || {});
                     const destKey = keys.find(k => k.toUpperCase().includes('DEST')) || 'DESTINASI';
                     rows.forEach(row => {
-                        // Key for Biaya is DESTINASI
                         const k = String(row[destKey] || '').trim().toUpperCase();
                         if (k) masterMap.set(k, row);
                     });
@@ -278,20 +280,18 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                     const sysKey = keys.find(k => k.trim().replace(/_/g, '').toUpperCase() === 'SYSCODE');
                     if (!sysKey) return; 
                     rows.forEach(row => {
-                        // Key for Tarif is SYS_CODE
                         const k = String(row[sysKey] || '').trim().toUpperCase();
                         if (k) masterMap.set(k, row);
                     });
                 }
             },
-            (pct) => setProgress(Math.round(pct * 0.3)) // Master read is 0-30% of progress
+            (pct) => setProgress(Math.round(pct * 0.3)) 
         );
 
         if (masterMap.size === 0) {
             throw new Error("Gagal membaca Master Data atau kolom Key (SYS_CODE/DESTINASI) tidak ditemukan.");
         }
 
-        // --- 2. PROCESS IT DATA & VALIDATE ---
         setStatusMessage('Memvalidasi Data IT (Baris per baris)...');
         
         const fullReport: FullValidationRow[] = [];
@@ -305,14 +305,14 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
             if (['CRGTK', 'JTR23', 'JTR5_23'].includes(v)) return 'JTR23';
             if (['REG05', 'REG19', 'REG23', 'REGSUM'].includes(v)) return 'REG23';
             if (v.startsWith('YES') || ['YES19', 'YES23'].includes(v)) return 'YES23';
-            return v; // Default: use self if not mapped
+            return v; 
         };
 
         const parseNum = (val: any) => {
             if (!val) return 0;
             let str = String(val).trim();
-            str = str.replace(/[.,]00$/, ''); // Remove trailing decimals
-            const clean = str.replace(/[^0-9-]/g, ''); // Keep only digits and minus sign
+            str = str.replace(/[.,]00$/, ''); 
+            const clean = str.replace(/[^0-9-]/g, ''); 
             return parseInt(clean, 10) || 0;
         };
 
@@ -334,7 +334,6 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                     const rowIndex = rowIndexGlobal;
 
                     if (category === 'BIAYA') {
-                         // --- LOGIKA VALIDASI BIAYA ---
                          const keys = Object.keys(itRow);
                          const destKey = keys.find(k => k.toUpperCase().includes('DEST')) || 'DESTINASI';
                          const serviceKey = keys.find(k => k.toUpperCase().includes('SERVICE')) || 'SERVICE';
@@ -343,13 +342,12 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                          const rawService = String(itRow[serviceKey] || '').trim();
                          const acuanService = getAcuanService(rawService);
 
-                         // Lookup Master using DESTINASI
                          const masterRow = masterMap.get(dest.toUpperCase());
 
                          const reportRow: FullValidationRow = {
                             origin: String(itRow['ORIGIN'] || ''),
                             dest: dest,
-                            sysCode: rawService, // In Biaya mode, store raw service here for display
+                            sysCode: rawService, 
                             serviceMaster: acuanService,
                             tarifMaster: 0, slaFormMaster: 0, slaThruMaster: 0, 
                             serviceIT: rawService,
@@ -368,16 +366,13 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                              reportRow.keterangan = 'Master Data Tidak Ada (Destinasi)';
                              blanksCount++;
                              mismatches.push({ rowId: rowIndex, reasons: ['Master Data Tidak Ada'], details: [] });
-                             // Init zeroes
                              reportRow.bpMaster = 0; reportRow.bpNextMaster = 0; reportRow.btMaster = 0; reportRow.bdMaster = 0; reportRow.bdNextMaster = 0;
                          } else {
-                             // Dynamic Column Lookup based on Acuan Service (e.g. "BP REG23")
                              const getMasterVal = (prefix: string) => {
                                  const target = `${prefix} ${acuanService}`.toUpperCase().replace(/\s+/g, ' ');
                                  const key = Object.keys(masterRow).find(k => 
                                      k.toUpperCase().replace(/\s+/g, ' ') === target
                                  );
-                                 // Jika kolom spesifik tidak ada, return 0 (anggap di master nilainya 0)
                                  return parseNum(key ? masterRow[key] : '0');
                              };
 
@@ -414,7 +409,6 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                          fullReport.push(reportRow);
 
                     } else {
-                        // --- LOGIKA VALIDASI TARIF ---
                         const keys = Object.keys(itRow);
                         const sysKey = keys.find(k => k.trim().replace(/_/g, '').toUpperCase() === 'SYSCODE');
                         const sysCode = String(itRow[sysKey!] || '').trim().toUpperCase();
@@ -496,7 +490,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                     }
                 });
             },
-            (pct) => setProgress(30 + Math.round(pct * 0.7)) // Validation read is 30-100% of progress
+            (pct) => setProgress(30 + Math.round(pct * 0.7)) 
         );
 
         setStatusMessage('Menyimpan hasil...');
@@ -509,13 +503,18 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
         };
         setResult(validationResult);
 
-        // Store history
+        const isTooLarge = fullReport.length > 5000;
+        
         const historyItem: ValidationHistoryItem = {
             id: Date.now().toString(),
             timestamp: new Date().toLocaleString('id-ID'),
             fileNameIT: fileIT.name,
             fileNameMaster: fileMaster.name,
-            result: validationResult,
+            result: {
+                ...validationResult,
+                fullReport: isTooLarge ? [] : fullReport, 
+                mismatches: isTooLarge ? [] : mismatches 
+            },
             category: category
         };
         setHistory(prev => [historyItem, ...prev]);
@@ -533,6 +532,11 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
   const getDisplayedRows = useMemo(() => {
       if (!result) return [];
       let rows = [];
+      
+      if (result.totalRows > 0 && result.fullReport.length === 0) {
+          return [];
+      }
+
       if (reportFilter === 'ALL') rows = result.fullReport;
       else if (reportFilter === 'MATCH') rows = result.fullReport.filter(r => r.keterangan === 'Sesuai');
       else if (reportFilter === 'BLANK') rows = result.fullReport.filter(r => r.keterangan.includes('Tidak Ada'));
@@ -559,6 +563,11 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
   const restoreFromHistory = (item: ValidationHistoryItem) => {
       setResult(item.result);
       setFileIT(null); setFileMaster(null);
+      
+      if (item.result.totalRows > 0 && item.result.fullReport.length === 0) {
+          alert("Detail data untuk validasi ini tidak tersimpan karena ukurannya terlalu besar. Hanya ringkasan statistik yang tersedia.");
+      }
+      
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -587,7 +596,6 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Upload Card IT */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center text-center hover:border-blue-500 transition group relative">
             <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition">
                 <FileUp size={24} />
@@ -605,7 +613,6 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
             {fileIT && <span className="absolute top-4 right-4 text-green-500"><CheckCircle2 size={20}/></span>}
         </div>
 
-        {/* Upload Card Master */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center text-center hover:border-purple-500 transition group relative">
             <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition">
                 <FileUp size={24} />
@@ -683,14 +690,13 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                 </div>
               </div>
 
-              {result.mismatches.length > 0 && (
+              {result.mismatches.length > 0 && result.fullReport.length > 0 && (
                 <div className="border-t border-slate-200">
                     <div className="bg-slate-50 px-6 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider flex justify-between">
                         <span>Quick List Ketidaksesuaian (Sampel 100 Data Pertama)</span>
                         <span className="text-red-500">Total Error: {result.mismatches.length.toLocaleString()}</span>
                     </div>
                     <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
-                        {/* Slice to prevent crash on large errors */}
                         {result.mismatches.slice(0, 100).map((item, idx) => (
                             <div 
                                 key={idx} 
@@ -807,6 +813,13 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                 </div>
                 
                 <div className="flex-1 overflow-auto bg-slate-50">
+                    {getDisplayedRows.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                            <AlertTriangle size={48} className="mb-2 opacity-50" />
+                            <p>Data tidak tersedia untuk ditampilkan (Mungkin file terlalu besar).</p>
+                            <p className="text-sm">Silakan download CSV untuk melihat detail lengkap.</p>
+                        </div>
+                    ) : (
                     <table className="w-full text-xs text-left border-collapse bg-white">
                         <thead className="sticky top-0 z-10 shadow-sm">
                             <tr className="uppercase text-slate-800 font-bold border-b border-slate-300">
@@ -821,12 +834,10 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                                 
                                 {category === 'TARIF' ? (
                                     <>
-                                        {/* Master Data */}
                                         <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">Service REG</th>
                                         <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">Tarif REG</th>
                                         <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">sla form</th>
                                         <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">sla thru</th>
-                                        {/* IT Data */}
                                         <th className="bg-white px-2 py-3 border-r border-slate-200">SERVICE</th>
                                         <th className="bg-white px-2 py-3 border-r border-slate-200">TARIF</th>
                                         <th className="bg-white px-2 py-3 border-r border-slate-200">SLA_FORM</th>
@@ -834,7 +845,6 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                                     </>
                                 ) : (
                                     <>
-                                        {/* BIAYA COLS */}
                                         <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">BP M</th>
                                         <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">BP N M</th>
                                         <th className="bg-slate-200 px-2 py-3 border-r border-slate-300">BT M</th>
@@ -900,9 +910,10 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                             )}
                         </tbody>
                     </table>
+                    )}
                 </div>
 
-                {/* PAGINATION */}
+                {totalPages > 0 && (
                 <div className="p-4 border-t border-slate-200 bg-white flex justify-between items-center flex-shrink-0">
                     <p className="text-sm text-slate-500">Page {currentPage} of {totalPages}</p>
                     <div className="flex gap-2">
@@ -914,6 +925,7 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                         </button>
                     </div>
                 </div>
+                )}
             </div>
         </div>
       )}

@@ -11,7 +11,7 @@ export interface Job {
   status: Status;
   deadline: string;
   activationDate?: string;
-  keterangan?: string; // New field
+  keterangan?: string;
   notes?: string;
   createdBy?: string;
 }
@@ -44,8 +44,6 @@ export interface ValidationLog {
   description: string;
   category?: string;
 }
-
-// --- New Validation Interfaces ---
 
 export type ValidationCategory = 'TARIF' | 'BIAYA';
 
@@ -108,25 +106,4 @@ export interface ValidationHistoryItem {
     fileNameMaster: string;
     result: ValidationResult;
     category: ValidationCategory;
-}
-
-// Legacy support if needed, but mostly replaced by FullValidationRow
-export interface TarifRow {
-  ORIGIN: string;
-  DEST: string;
-  SYS_CODE: string;
-  SERVICE: string;
-  TARIF: string;
-  SLA_FORM: string;
-  SLA_THRU: string;
-  [key: string]: string | string[] | undefined;
-}
-
-export interface ValidationResultRow extends TarifRow {
-  validationStatus: 'MATCH' | 'MISMATCH' | 'BLANK';
-  errors: string[];
-  SERVICE_REG?: string;
-  TARIF_REG?: string;
-  SLA_FORM_REG?: string;
-  SLA_THRU_REG?: string;
 }
