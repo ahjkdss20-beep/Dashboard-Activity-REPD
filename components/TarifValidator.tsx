@@ -682,6 +682,55 @@ export const TarifValidator: React.FC<TarifValidatorProps> = ({ category }) => {
                     <p className="text-3xl font-bold text-slate-800">{result.blanks.toLocaleString()}</p>
                 </div>
               </div>
+
+              {result.mismatches.length > 0 && (
+                <div className="border-t border-slate-200">
+                    <div className="bg-slate-50 px-6 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider flex justify-between">
+                        <span>Quick List Ketidaksesuaian (Sampel 100 Data Pertama)</span>
+                        <span className="text-red-500">Total Error: {result.mismatches.length.toLocaleString()}</span>
+                    </div>
+                    <div className="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                        {/* Slice to prevent crash on large errors */}
+                        {result.mismatches.slice(0, 100).map((item, idx) => (
+                            <div 
+                                key={idx} 
+                                onClick={(e) => { e.stopPropagation(); setSelectedMismatch(item); }}
+                                className="px-6 py-3 flex items-center justify-between hover:bg-blue-50 cursor-pointer group transition"
+                            >
+                                <div className="flex items-start gap-3">
+                                    {item.reasons[0].includes('Tidak Ada') ? (
+                                        <HelpCircle size={18} className="text-slate-400 mt-0.5 flex-shrink-0" />
+                                    ) : (
+                                        <AlertTriangle size={18} className="text-red-500 mt-0.5 flex-shrink-0" />
+                                    )}
+                                    
+                                    <div>
+                                        <p className="text-sm font-medium text-slate-800">Row ID: {item.rowId}</p>
+                                        <div className="flex flex-wrap gap-2 mt-1">
+                                            {item.reasons.map((reason, rIdx) => (
+                                                <span 
+                                                    key={rIdx} 
+                                                    className={`text-xs px-2 py-0.5 rounded-full ${reason.includes('Tidak Ada') ? 'bg-slate-200 text-slate-700' : 'bg-red-100 text-red-700'}`}
+                                                >
+                                                    {reason}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                                <Eye size={16} className="text-slate-300 group-hover:text-blue-600" />
+                            </div>
+                        ))}
+                        {result.mismatches.length > 100 && (
+                            <div className="px-6 py-4 text-center text-sm text-slate-500 bg-slate-50 italic">
+                                ... dan {(result.mismatches.length - 100).toLocaleString()} error lainnya. 
+                                <br/>
+                                Silakan <strong>Download Report</strong> atau klik <strong>Lihat Detail Table</strong> untuk data lengkap.
+                            </div>
+                        )}
+                    </div>
+                </div>
+              )}
           </div>
       )}
 
